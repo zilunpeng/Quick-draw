@@ -76,17 +76,17 @@ def set_edge_feature(x, y, get_center_ngbr_coords, get_noncent_ngbr_coords, size
     edge_feature_tt[inds] = 1
     edge_feature_tf[get_tf_ft_ind(x,y,x_noncent,y_noncent,true_ngbr,valid_ngbr,is_ngbr_center=False,size=size)] = 1
 
-    return np.concatenate(edge_feature_tt, edge_feature_tf, edge_feature_ft)
+    return np.concatenate((edge_feature_tt, edge_feature_tf, edge_feature_ft))
 
 def set_feature_mat(drawing, size):
-    feature_node = np.zeros(size)
+    feature_node = np.zeros(size*size)
     (x, y) = find_non_zero_nodes(drawing)
     feature_node[sub2ind(x, y, size)] = 1
     feature_h_edge = set_edge_feature(x,y,get_left_node_coords,get_right_node_coords,size)
     feature_v_edge = set_edge_feature(x,y,get_up_node_coords,get_down_node_coords,size)
     feature_nw_edge = set_edge_feature(x,y,get_up_left_node_coords,get_down_right_node_coords,size)
     feature_ne_edge = set_edge_feature(x,y,get_up_right_node_coords,get_down_left_node_coords,size)
-    return np.concatenate(feature_node,feature_h_edge,feature_v_edge,feature_nw_edge,feature_ne_edge)
+    return np.concatenate((feature_node,feature_h_edge,feature_v_edge,feature_nw_edge,feature_ne_edge))
 
 data = pd.read_csv('train_simplified/fence.csv')
 data = data.iloc[0,:]
