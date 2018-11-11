@@ -53,36 +53,34 @@ def intersect_coords(x_coord, y_coord, x_coord_ngbr, y_coord_ngbr):
 def sub2ind(x_coord, y_coord, size):
     return y_coord*size + x_coord
 
+def get_tt_ind(x, y, x_ngbr, y_ngbr, is_ngbr_center, size):
+    valid_ngbr = get_valid_coord(x_ngbr, y_ngbr, size)
+    true_ngbr = intersect_coords(x, y, x_ngbr, y_ngbr)
+    inds = np.logical_and(true_ngbr, valid_ngbr)
+    inds = sub2ind(x_ngbr[inds], y_ngbr[inds], size) if is_ngbr_center else sub2ind(x[inds], y[inds], size)
+    return inds, true_ngbr, valid_ngbr
+
+def get_tf_ft_ind(x,y,x_ngbr,y_ngbr,true_ngbr, valid_ngbr, is_ngbr_center, size):
+    false_ngbr = np.logical_not(true_ngbr)
+    inds = np.logical_and(false_ngbr, valid_ngbr)
+    inds = sub2ind(x_ngbr[inds], y_ngbr[inds], size) if is_ngbr_center else sub2ind(x[inds], y[inds], size)
+    return inds
+
 def set_h_edge_feature(x_coords, y_coords, size):
     tot_nodes = size*size
     h_edge_feature_tt = np.zeros(tot_nodes)
     h_edge_feature_tf = np.zeros(tot_nodes)
     h_edge_feature_ft = np.zeros(tot_nodes)
-
     x_coords_left, y_coords_left = get_left_node_coords(x_coords,y_coords)
     x_coords_right, y_coords_right = get_right_node_coords(x_coords,y_coords)
 
-    valid_ngbr = get_valid_coord(x_coords_left, y_coords_left, size)
-    true_ngbr = intersect_coords(x_coords,y_coords,x_coords_left,y_coords_left)
-    inds = np.logical_and(true_ngbr, valid_ngbr)
-    inds = sub2ind(x_coords_left[inds], y_coords_left[inds], size)
+    inds, true_ngbr, valid_ngbr = get_tt_ind(x_coords, y_coords, x_coords_left, y_coords_left, is_ngbr_center=True, size=size)
     h_edge_feature_tt[inds] = 1
+    h_edge_feature_ft[get_tf_ft_ind(x_coords,y_coords,x_coords_left,y_coords_left,true_ngbr,valid_ngbr,is_ngbr_center=True,size=size)] = 1
 
-    false_ngbr = np.logical_not(true_ngbr)
-    inds = np.logical_and(false_ngbr, valid_ngbr)
-    inds = sub2ind(x_coords_left[inds], y_coords_left[inds], size)
-    h_edge_feature_ft[inds] = 1
-
-    valid_ngbr = get_valid_coord(x_coords_right, y_coords_right, size)
-    true_ngbr = intersect_coords(x_coords, y_coords, x_coords_right, y_coords_right)
-    inds = np.logical_and(true_ngbr, valid_ngbr)
-    inds = sub2ind(x_coords[inds], y_coords[inds], size)
+    inds, ture_ngbr, valid_ngbr = get_tt_ind(x_coords, y_coords, x_coords_left, y_coords_left, is_ngbr_center=False, size=size)
     h_edge_feature_tt[inds] = 1
-
-    false_ngbr = np.logical_not(true_ngbr)
-    inds = np.logical_and(false_ngbr, valid_ngbr)
-    inds = sub2ind(x_coords_right[inds], y_coords_right[inds], size)
-    h_edge_feature_tf[inds] = 1
+    h_edge_feature_tf[get_tf_ft_ind(x_coords,y_coords,x_coords_right,y_coords_right,true_ngbr,valid_ngbr,is_ngbr_center=False,size=size)] = 1
 
     return np.concatenate(h_edge_feature_tt, h_edge_feature_tf, h_edge_feature_ft)
 
@@ -92,7 +90,7 @@ def set_feature_mat(drawing, size):
     feature_node = np.zeros(size)
     (x_coords, y_coords) = find_non_zero_nodes(drawing)
     feature_node[sub2ind(x_coords, y_coords, size)] = 1
-    feature_right_edge = set_h_edge_feature(x_coords, y_coords, size)
+    feature_h_edge = set_h_edge_feature(x_coords, y_coords, size)
 
 
 print(data)
