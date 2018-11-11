@@ -78,19 +78,55 @@ def set_h_edge_feature(x_coords, y_coords, size):
     h_edge_feature_tt[inds] = 1
     h_edge_feature_ft[get_tf_ft_ind(x_coords,y_coords,x_coords_left,y_coords_left,true_ngbr,valid_ngbr,is_ngbr_center=True,size=size)] = 1
 
-    inds, ture_ngbr, valid_ngbr = get_tt_ind(x_coords, y_coords, x_coords_left, y_coords_left, is_ngbr_center=False, size=size)
+    inds, true_ngbr, valid_ngbr = get_tt_ind(x_coords, y_coords, x_coords_left, y_coords_left, is_ngbr_center=False, size=size)
     h_edge_feature_tt[inds] = 1
     h_edge_feature_tf[get_tf_ft_ind(x_coords,y_coords,x_coords_right,y_coords_right,true_ngbr,valid_ngbr,is_ngbr_center=False,size=size)] = 1
 
     return np.concatenate(h_edge_feature_tt, h_edge_feature_tf, h_edge_feature_ft)
 
+def set_v_edge_feature(x_coords, y_coords, size):
+    tot_nodes = size * size
+    v_edge_feature_tt = np.zeros(tot_nodes)
+    v_edge_feature_tf = np.zeros(tot_nodes)
+    v_edge_feature_ft = np.zeros(tot_nodes)
+    x_coords_up, y_coords_up = get_up_node_coords(x_coords, y_coords)
+    x_coords_down, y_coords_down = get_down_node_coords(x_coords, y_coords)
 
+    inds, true_ngbr, valid_ngbr = get_tt_ind(x_coords, y_coords, x_coords_up, y_coords_up, is_ngbr_center=True, size=size)
+    v_edge_feature_tt[inds] = 1
+    v_edge_feature_ft[get_tf_ft_ind(x_coords,y_coords,x_coords_up,y_coords_up,true_ngbr,valid_ngbr,is_ngbr_center=True,size=size)] = 1
+
+    inds, true_ngbr, valid_ngbr = get_tt_ind(x_coords, y_coords, x_coords_down, y_coords_down, is_ngbr_center=False, size=size)
+    v_edge_feature_tt[inds] = 1
+    v_edge_feature_tf[get_tf_ft_ind(x_coords,y_coords,x_coords_down,y_coords_down,true_ngbr,valid_ngbr,is_ngbr_center=False,size=size)] = 1
+
+    return np.concatenate(v_edge_feature_tt, v_edge_feature_tf, v_edge_feature_ft)
+
+def set_nw_edge_feature(x_coords, y_coords, size):
+    tot_nodes = size * size
+    edge_feature_tt = np.zeros(tot_nodes)
+    edge_feature_tf = np.zeros(tot_nodes)
+    edge_feature_ft = np.zeros(tot_nodes)
+    x_coords_nw, y_coords_nw = get_up_left_node_coords(x_coords, y_coords)
+    x_coords_se, y_coords_se = get_down_right_node_coords(x_coords, y_coords)
+
+    inds, true_ngbr, valid_ngbr = get_tt_ind(x_coords, y_coords, x_coords_nw, y_coords_nw, is_ngbr_center=True, size=size)
+    edge_feature_tt[inds] = 1
+    edge_feature_ft[get_tf_ft_ind(x_coords,y_coords,x_coords_nw,y_coords_nw,true_ngbr,valid_ngbr,is_ngbr_center=True,size=size)] = 1
+
+    inds, true_ngbr, valid_ngbr = get_tt_ind(x_coords, y_coords, x_coords_se, y_coords_se, is_ngbr_center=False, size=size)
+    edge_feature_tt[inds] = 1
+    edge_feature_tf[get_tf_ft_ind(x_coords,y_coords,x_coords_se,y_coords_se,true_ngbr,valid_ngbr,is_ngbr_center=False,size=size)] = 1
+
+    return np.concatenate(edge_feature_tt, edge_feature_tf, edge_feature_ft)
 
 def set_feature_mat(drawing, size):
     feature_node = np.zeros(size)
     (x_coords, y_coords) = find_non_zero_nodes(drawing)
     feature_node[sub2ind(x_coords, y_coords, size)] = 1
     feature_h_edge = set_h_edge_feature(x_coords, y_coords, size)
+    feature_v_edge = set_v_edge_feature(x_coords, y_coords, size)
+    feature_nw_edge = set_nw_edge_feature(x_coords, y_coords, size)
 
 
 print(data)
