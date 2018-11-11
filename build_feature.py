@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import ast
 import build_drawings
+import scipy.sparse
 
 def find_non_zero_nodes(data):
     (row_ind, col_ind) = np.where(data)
@@ -37,7 +38,6 @@ def get_valid_coord(x_coord, y_coord, size):
     valid_y_coord = np.logical_and(y_coord>=0, y_coord<size)
     valid_coord = np.logical_and(valid_x_coord, valid_y_coord)
     return valid_coord
-    #return x_coord[valid_coord], y_coord[valid_coord], size
 
 def intersect_coords(x_coord, y_coord, x_coord_ngbr, y_coord_ngbr):
     comm_x = np.in1d(x_coord, x_coord_ngbr)
@@ -89,9 +89,14 @@ def set_feature_mat(drawing, size):
     return np.concatenate((feature_node,feature_h_edge,feature_v_edge,feature_nw_edge,feature_ne_edge))
 
 data = pd.read_csv('train_simplified/fence.csv')
+print('data size: ', data.shape)
 data = data.iloc[0,:]
 data = data['drawing']
 data = ast.literal_eval(data)
 data = build_drawings.build_drawing(data,256)
-set_feature_mat(data,256)
-print(data)
+feature = set_feature_mat(data,256)
+print('num non-zero: ', np.count_nonzero(feature))
+sp_mat = scipy.sparse.csc_matrix(feature)
+scipy.sparse.save_npz('sparse_feature_testing.npz',sp_mat)
+testing_sp_mat = scipy.sparse.load_npz('sparse_feature_testing.npz')
+print(testing_sp_mat)
