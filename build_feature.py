@@ -87,7 +87,7 @@ def set_feature_mat(drawing, size):
     feature_ne_edge = set_edge_feature(x,y,get_up_right_node_coords,get_down_left_node_coords,size)
     return np.concatenate((feature_node,feature_h_edge,feature_v_edge,feature_nw_edge,feature_ne_edge))
 
-if __name__ == "main":
+if __name__ == "__main__":
     data = pd.read_csv('train_simplified/fence.csv')
     print('data size: ', data.shape)
     data = data.iloc[0,:]
@@ -95,6 +95,7 @@ if __name__ == "main":
     data = ast.literal_eval(data)
     data = build_drawings.build_drawing(data,256)
     feature = set_feature_mat(data,256)
+    print(feature.shape)
 # print('num non-zero: ', np.count_nonzero(feature))
 # sp_mat = scipy.sparse.csc_matrix(feature)
 # scipy.sparse.save_npz('sparse_feature_testing.npz',sp_mat)
