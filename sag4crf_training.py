@@ -45,7 +45,7 @@ class sag4crf:
         self.cat_visit_freq[self.cur_cat] += 1
 
     def update(self):
-        self.cur_cat= (self.cur_cat+1 if self.cur_cat<self.num_cats else 0)
+        self.cur_cat= (self.cur_cat+1 if self.cur_cat<self.num_cats-1 else 0)
         np.save(self.probs, self.cur_cat_path+'/probs.npy')
         self.read_category(self.cur_cat)
 
@@ -70,17 +70,17 @@ class sag4crf:
     def sag_training(self):
         iter = 0
         d = np.zeros(851968)
-        w = np.zeros(851968)
         while iter<self.max_iter:
             data_id,x_i,y_i = self.custom_random_sampler()
             feat_i = build_feature.set_feature_mat(x_i,256)
             d = self.compute_d(d,data_id,feat_i)
-            w = (1-self.alpha*self.reg_lam)*w -(self.alpha/self.tot_data_seen)*d
+            w = (1-self.alpha*self.reg_lam)*self.weights[self.cur_cat,:] - (self.alpha/self.tot_data_seen)*d
+            self.weights[self.cur_cat, :] = w
 
             if self.cur_tr_fold_counter > self.max_iter_on_cat:
                 self.update()
                 iter += 1
         return w
 
-sth = sag4crf('cv_simplified',1,0.1,1,1000,1e-5,3)
-sth.sag_training()
+crf = sag4crf(data_dir='cv_simplified',fold_num=1,regularization_param=0.001,step_size=0.000001,maximum_iteration=3*340,err_tolerance=0.00001,maximum_iteration_on_one_category_multiplier=1)
+crf.sag_training()
