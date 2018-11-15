@@ -41,7 +41,7 @@ class sag4crf:
         self.cur_tr_fold_counter = 0
         self.cur_tr_fold_sample_freq_counter = np.zeros(self.cur_tr_fold_size)
         self.max_iter_on_cat = self.max_iter_multiplier * self.cur_tr_fold_size
-        self.probs = (np.ones(self.cur_tr_fold_size) * (1 / self.num_cats) if self.cat_visit_freq[self.cur_cat] == 0 else np.load(self.cur_cat_path+'/probs.npy'))
+        self.probs = (np.zeros(851968) if self.cat_visit_freq[self.cur_cat] == 0 else np.load(self.cur_cat_path+'/probs.npy'))
         self.cat_visit_freq[self.cur_cat] += 1
 
     def update(self):
