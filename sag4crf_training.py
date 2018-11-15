@@ -3,6 +3,7 @@ import ast
 import numpy as np
 import pandas as pd
 import build_feature
+from scipy.special import logsumexp
 
 class sag4crf:
 
@@ -43,6 +44,12 @@ class sag4crf:
         self.max_iter_on_cat = self.max_iter_multiplier * self.cur_tr_fold_size
         self.probs = (np.zeros(851968) if self.cat_visit_freq[self.cur_cat] == 0 else np.load(self.cur_cat_path+'/probs.npy'))
         self.cat_visit_freq[self.cur_cat] += 1
+        self.init_val_fold()
+
+    def init_val_fold(self):
+        self.cur_val_data_path = self.cur_cat_path + '/val' + str(self.fold_num) + '.csv'
+        self.cur_val_data_fold = pd.read_csv(self.cur_val_data_path)
+        self.cur_val_data_size = self.cur_val_data_fold.shape[0]
 
     def update(self):
         self.cur_cat= (self.cur_cat+1 if self.cur_cat<self.num_cats-1 else 0)
@@ -67,6 +74,17 @@ class sag4crf:
             self.cur_tr_fold_sample_freq_counter[data_id] = 1
         return data_id,x_i, y_i
 
+    def get_val_err(self):
+        val_err = 0
+        for i, val_data in self.cur_val_data_fold.iterrows():
+            val_data = val_data['drawing']
+            val_data = ast.literal_eval(val_data)
+            val_data = build_feature.set_feature_mat(val_data,256)
+            Z = self.weights @ val_data
+            val_err = val_err - Z[self.cur_cat] + logsumexp(Z)
+        wgt_err = np.sum(np.diag(self.weights @ np.transpose(self.weights)))
+        return val_err/self.cur_val_data_size + (self.reg_lam/2)*wgt_err
+
     def sag_training(self):
         iter = 0
         d = np.zeros(851968)
@@ -78,9 +96,11 @@ class sag4crf:
             self.weights[self.cur_cat, :] = w
 
             if self.cur_tr_fold_counter > self.max_iter_on_cat:
+                val_err = self.get_val_err()
                 self.update()
                 iter += 1
         return w
 
 crf = sag4crf(data_dir='cv_simplified',fold_num=1,regularization_param=0.001,step_size=0.000001,maximum_iteration=3*340,err_tolerance=0.00001,maximum_iteration_on_one_category_multiplier=1)
+crf.get_val_err()
 crf.sag_training()
