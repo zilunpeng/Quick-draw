@@ -1,12 +1,15 @@
 import pandas as pd
 import numpy as np
 import ast
-import build_drawings
 import scipy.sparse
 
-def find_non_zero_nodes(data):
-    (row_ind, col_ind) = np.where(data)
-    return col_ind, row_ind
+def find_row_col_inds(data):
+    row_inds = []
+    col_inds = []
+    for stroke in data:
+        row_inds.extend(stroke[0])
+        col_inds.extend(stroke[1])
+    return np.array(row_inds), np.array(col_inds)
 
 def get_up_node_coords(x_coords,y_coords):
     return x_coords,y_coords-1
@@ -79,7 +82,7 @@ def set_edge_feature(x, y, get_center_ngbr_coords, get_noncent_ngbr_coords, size
 
 def set_feature_mat(drawing, size):
     feature_node = np.zeros(size*size)
-    (x, y) = find_non_zero_nodes(drawing)
+    (x, y) = find_row_col_inds(drawing)
     feature_node[sub2ind(x, y, size)] = 1
     feature_h_edge = set_edge_feature(x,y,get_left_node_coords,get_right_node_coords,size)
     feature_v_edge = set_edge_feature(x,y,get_up_node_coords,get_down_node_coords,size)
@@ -93,7 +96,6 @@ if __name__ == "__main__":
     data = data.iloc[0,:]
     data = data['drawing']
     data = ast.literal_eval(data)
-    data = build_drawings.build_drawing(data,256)
     feature = set_feature_mat(data,256)
     print(feature.shape)
 # print('num non-zero: ', np.count_nonzero(feature))
