@@ -96,7 +96,7 @@ class sag4crf:
             if self.cur_tr_fold_counter > self.max_iter_on_cat:
                 print('finished training on category ' + self.cat_names[self.cur_cat] + '. Start validating.')
                 val_err = self.get_val_err()
-                print('iter={}. trained on category ' + self.cat_names[self.cur_cat] + '. NLL on validation set is {}'.format(iter,val_err))
+                print('iter={}. trained on category '.format(iter) + self.cat_names[self.cur_cat] + '. NLL on validation set is {}'.format(val_err))
                 self.update_category()
                 iter += 1
         return w

@@ -35,6 +35,6 @@ def train_test_split(dir_name,num_folds):
                     val_data.to_pickle(path=cv_dir_name+"val"+str(i)+".pkl")
                     i += 1
         else:
-            print(cat_name + 'already exists')
+            print(cat_name + ' already exists')
 
 train_test_split('train_simplified',10)
