@@ -1,5 +1,4 @@
 import os
-import ast
 import numpy as np
 import pandas as pd
 import build_feature
@@ -36,8 +35,8 @@ class sag4crf:
 
     def read_category(self, cur_cat):
         self.cur_cat_path = os.path.join(self.data_dir, self.cat_names[cur_cat])
-        self.cur_tr_data_path = self.cur_cat_path + '/tr' + str(self.fold_num) + '.csv'
-        self.cur_tr_data_fold = pd.read_csv(self.cur_tr_data_path)
+        self.cur_tr_data_path = self.cur_cat_path + '/tr' + str(self.fold_num) + '.pkl'
+        self.cur_tr_data_fold = pd.read_pickle(self.cur_tr_data_path)
         self.cur_tr_fold_size = self.cur_tr_data_fold.shape[0]
         self.cur_tr_fold_counter = 0
         self.cur_tr_fold_sample_freq_counter = np.zeros(self.cur_tr_fold_size)
@@ -47,11 +46,11 @@ class sag4crf:
         self.init_val_fold()
 
     def init_val_fold(self):
-        self.cur_val_data_path = self.cur_cat_path + '/val' + str(self.fold_num) + '.csv'
-        self.cur_val_data_fold = pd.read_csv(self.cur_val_data_path)
+        self.cur_val_data_path = self.cur_cat_path + '/val' + str(self.fold_num) + '.pkl'
+        self.cur_val_data_fold = pd.read_pickle(self.cur_val_data_path)
         self.cur_val_data_size = self.cur_val_data_fold.shape[0]
 
-    def update(self):
+    def update_category(self):
         self.cur_cat= (self.cur_cat+1 if self.cur_cat<self.num_cats-1 else 0)
         np.save(self.probs, self.cur_cat_path+'/probs.npy')
         self.read_category(self.cur_cat)
@@ -66,7 +65,6 @@ class sag4crf:
     def custom_random_sampler(self):
         data_id = np.random.randint(self.cur_tr_fold_size)
         x_i = self.cur_tr_data_fold.loc[data_id,'drawing']
-        x_i = ast.literal_eval(x_i)
         y_i = self.cur_cat
         self.cur_tr_fold_counter += 1
         if self.cat_visit_freq[self.cur_cat] == 1 and self.cur_tr_fold_sample_freq_counter[data_id] == 0:
@@ -78,7 +76,6 @@ class sag4crf:
         val_err = 0
         for i, val_data in self.cur_val_data_fold.iterrows():
             val_data = val_data['drawing']
-            val_data = ast.literal_eval(val_data)
             val_data = build_feature.set_feature_mat(val_data,256)
             Z = self.weights @ val_data
             val_err = val_err - Z[self.cur_cat] + logsumexp(Z)
@@ -88,6 +85,7 @@ class sag4crf:
     def sag_training(self):
         iter = 0
         d = np.zeros(851968)
+        print('start training')
         while iter<self.max_iter:
             data_id,x_i,y_i = self.custom_random_sampler()
             feat_i = build_feature.set_feature_mat(x_i,256)
@@ -96,9 +94,10 @@ class sag4crf:
             self.weights[self.cur_cat, :] = w
 
             if self.cur_tr_fold_counter > self.max_iter_on_cat:
+                print('finished training on category ' + self.cat_names[self.cur_cat] + '. Start validating.')
                 val_err = self.get_val_err()
                 print('iter={}. trained on category ' + self.cat_names[self.cur_cat] + '. NLL on validation set is {}'.format(iter,val_err))
-                self.update()
+                self.update_category()
                 iter += 1
         return w
 
