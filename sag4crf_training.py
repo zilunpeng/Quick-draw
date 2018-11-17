@@ -101,6 +101,7 @@ class sag4crf:
                 val_err = self.get_val_err()
                 print('iter=%d. trained on category '%(iter) + self.cat_names[self.cur_cat] + '. NLL on validation set is %.5f'%(val_err))
                 self.update_category()
+                then = now
                 iter += 1
         return w
 
