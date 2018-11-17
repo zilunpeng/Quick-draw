@@ -1,4 +1,3 @@
-import os
 import pandas as pd
 import numpy as np
 import ast
@@ -36,6 +35,6 @@ def plot_sample_imgs(num_img_to_show,data):
 
 if __name__ == "__main__":
     num_img_to_show = 64
-    data = pd.read_csv('train_simplified/fence.csv')
+    data = pd.read_csv('train_simplified/zebra.csv')
     data = get_sample_imgs(num_img_to_show, data)
     plot_sample_imgs(num_img_to_show,data)
