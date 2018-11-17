@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 import pandas as pd
 import build_feature
@@ -85,6 +86,7 @@ class sag4crf:
     def sag_training(self):
         iter = 0
         d = np.zeros(851968)
+        then = time.time()
         print('start training')
         while iter<self.max_iter:
             data_id,x_i,y_i = self.custom_random_sampler()
@@ -94,7 +96,8 @@ class sag4crf:
             self.weights[self.cur_cat, :] = w
 
             if self.cur_tr_fold_counter > self.max_iter_on_cat:
-                print('finished training on category ' + self.cat_names[self.cur_cat] + '. Start validating.')
+                now = time.time()
+                print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Start validating.')
                 val_err = self.get_val_err()
                 print('iter=%d. trained on category '%(iter) + self.cat_names[self.cur_cat] + '. NLL on validation set is %.5f'%(val_err))
                 self.update_category()
