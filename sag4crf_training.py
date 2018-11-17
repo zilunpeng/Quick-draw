@@ -52,7 +52,7 @@ class sag4crf:
 
     def update_category(self):
         self.cur_cat= (self.cur_cat+1 if self.cur_cat<self.num_cats-1 else 0)
-        np.save(self.probs, self.cur_cat_path+'/probs.npy')
+        np.save(file=self.cur_cat_path+'/probs.npy',arr=self.probs)
         self.read_category(self.cur_cat)
 
     def compute_d(self, old_d, data_id, feature_i):
@@ -102,4 +102,5 @@ class sag4crf:
         return w
 
 crf = sag4crf(data_dir='cv_simplified',fold_num=1,regularization_param=0.001,step_size=0.000001,maximum_iteration=3*340,err_tolerance=0.00001,maximum_iteration_on_one_category_multiplier=1)
+crf.update_category()
 crf.sag_training()
