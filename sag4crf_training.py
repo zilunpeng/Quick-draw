@@ -102,5 +102,4 @@ class sag4crf:
         return w
 
 crf = sag4crf(data_dir='cv_simplified',fold_num=1,regularization_param=0.001,step_size=0.000001,maximum_iteration=3*340,err_tolerance=0.00001,maximum_iteration_on_one_category_multiplier=1)
-crf.update_category()
 crf.sag_training()
