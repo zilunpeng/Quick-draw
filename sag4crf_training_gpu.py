@@ -106,7 +106,7 @@ class sag4crf:
                 val_err = self.get_val_err()
                 print('epoch=%d. trained on category '%(epoch) + self.cat_names[self.cur_cat] + '. NLL on validation set is %.5f'%(val_err))
                 self.update_category()
-                then = now
+                then = time.time()
                 iter = 0
                 epoch += 1
         return w
