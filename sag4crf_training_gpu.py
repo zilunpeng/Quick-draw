@@ -22,7 +22,7 @@ class sag4crf:
         self.read_category(self.cur_cat)
 
         self.weights = tf.get_variable("weights",shape=[self.num_cats, 851968],dtype=tf.float64,initializer=tf.zeros_initializer)
-        with tf.device('/device:GPU:0'):
+        with tf.device('/device:CPU:0'):
             self.sess.run(self.weights.initializer)
         self.tot_data_seen = 0
 
@@ -58,7 +58,7 @@ class sag4crf:
         self.read_category(self.cur_cat)
 
     def compute_d(self, old_d, data_id, feature_i):
-        with tf.device('/device:GPU:0'):
+        with tf.device('/device:CPU:0'):
             Z = tf.exp(tf.tensordot(self.weights, feature_i, axes=[[1],[0]]))
             new_prob = Z[self.cur_cat] / tf.reduce_sum(Z)
             d = old_d + feature_i * (self.probs[data_id] - new_prob)
@@ -74,7 +74,7 @@ class sag4crf:
 
     def get_val_err(self):
         predictions = []
-        with tf.device('/device:GPU:0'):
+        with tf.device('/device:CPU:0'):
             for i, val_data in self.cur_val_data_fold.iterrows():
                 val_data = val_data['drawing']
                 val_data = tf.convert_to_tensor(build_feature.set_feature_mat(val_data,256))
