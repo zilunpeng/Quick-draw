@@ -22,8 +22,6 @@ class sag4crf:
         self.read_category(self.cur_cat)
 
         self.weights = tf.get_variable("weights",shape=[self.num_cats, 851968],dtype=tf.float64,initializer=tf.zeros_initializer)
-        # with tf.device('/cpu:0'):
-        #     self.sess.run(self.weights.initializer)
         self.sess.run(self.weights.initializer)
         self.tot_data_seen = 0
 
@@ -59,18 +57,13 @@ class sag4crf:
         self.read_category(self.cur_cat)
 
     def compute_d(self, old_d, data_id, feature_i):
-        # with tf.device('/cpu:0'):
-        #     Z = tf.exp(tf.tensordot(self.weights, feature_i, axes=[[1],[0]]))
-        #     new_prob = Z[self.cur_cat] / tf.reduce_sum(Z)
-        #     d = old_d + feature_i * (self.probs[data_id] - new_prob)
-        a = self.weights
-        b = feature_i
-        Z = tf.exp(tf.tensordot(a, b, axes=[[1], [0]]))
+        Z = tf.exp(tf.tensordot(self.weights, feature_i, axes=[[1], [0]]))
+        Z = self.sess.run(Z)
         new_prob = Z[self.cur_cat] / tf.reduce_sum(Z)
+        new_prob = self.sess.run(new_prob)
         d = old_d + feature_i * (self.probs[data_id] - new_prob)
-        self.probs[data_id] = self.sess.run(new_prob)
+        self.probs[data_id] = new_prob
         return d
-        #return self.sess.run(d)
 
     def custom_random_sampler(self, data_id):
         x_i = self.cur_tr_data_fold.loc[data_id,'drawing']
@@ -107,11 +100,11 @@ class sag4crf:
         while epoch<self.max_iter:
             data_id = self.cur_tr_fold_seq[iter]
             x_i,y_i = self.custom_random_sampler(data_id)
-            feat_i = tf.convert_to_tensor(build_feature.set_feature_mat(x_i,256))
+            feat_i = build_feature.set_feature_mat(x_i,256)
             d = self.compute_d(d,data_id,feat_i)
             w = (1-self.alpha*self.reg_lam)*self.weights[self.cur_cat,:] - (self.alpha/self.tot_data_seen)*d
             w = self.sess.run(w)
-            tf.scatter_update(self.weights, indices=self.cur_cat, updates=w)
+            self.sess.run(tf.scatter_update(self.weights, indices=self.cur_cat, updates=w))
             iter += 1
 
             if iter >= self.cur_tr_fold_size:
