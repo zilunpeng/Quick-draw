@@ -15,7 +15,7 @@ class sag4crf:
         self.delta = err_tolerance
         self.fold_num = fold_num
         self.alpha = step_size
-        self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=False, log_device_placement=False))
+        self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
         self.init_all_cats(data_dir)
         self.cur_cat = 0
