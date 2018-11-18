@@ -61,9 +61,8 @@ class sag4crf:
         with tf.device('/device:GPU:0'):
             Z = tf.exp(tf.tensordot(self.weights, feature_i, axes=[[1],[0]]))
             new_prob = Z[self.cur_cat] / tf.reduce_sum(Z)
-        new_prob = self.sess.run(new_prob)
-        d = old_d + feature_i*(self.probs[data_id] - new_prob)
-        self.probs[data_id] = new_prob
+            d = old_d + feature_i * (self.probs[data_id] - new_prob)
+        self.probs[data_id] = self.sess.run(new_prob)
         return d
 
     def custom_random_sampler(self, data_id):
@@ -97,6 +96,7 @@ class sag4crf:
             feat_i = tf.convert_to_tensor(build_feature.set_feature_mat(x_i,256))
             d = self.compute_d(d,data_id,feat_i)
             w = (1-self.alpha*self.reg_lam)*self.weights[self.cur_cat,:] - (self.alpha/self.tot_data_seen)*d
+            w = self.sess.run(w)
             tf.scatter_update(self.weights, indices=self.cur_cat, updates=w)
             iter += 1
 
