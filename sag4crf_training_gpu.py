@@ -82,7 +82,7 @@ class sag4crf:
                 _, predictions_i = tf.nn.top_k(Z, k=3, sorted=True)
                 predictions.append(predictions_i)
             predictions = self.sess.run(predictions)
-        return mapk(actual=np.matrix(np.zeros((self.cur_val_data_size),dtype=np.int8)), predicted=np.array(predictions), k=3)
+        return mapk(actual=np.matrix(np.ones((self.cur_val_data_size),dtype=np.int8)*self.cur_cat), predicted=np.array(predictions), k=3)
 
     def sag_training(self):
         iter = 0
