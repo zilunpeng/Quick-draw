@@ -21,9 +21,8 @@ class sag4crf:
         self.cur_cat = 0
         self.read_category(self.cur_cat)
 
-        # self.weights = tf.get_variable("weights",shape=[self.num_cats, 851968],dtype=tf.float64,initializer=tf.zeros_initializer)
-        # self.sess.run(self.weights.initializer)
-        self.weights = np.zeros((self.num_cats, 851968))
+        self.weights = tf.get_variable("weights",shape=[self.num_cats, 851968],dtype=tf.float64,initializer=tf.zeros_initializer)
+        self.sess.run(self.weights.initializer)
         self.tot_data_seen = 0
 
     def init_all_cats(self,data_dir):
@@ -59,11 +58,11 @@ class sag4crf:
 
     def compute_d(self, old_d, data_id, feature_i):
         Z = self.sess.run(tf.tensordot(self.weights, feature_i, axes=[[1], [0]]))
-        Z = tf.exp(Z)
-        Z = self.sess.run(Z)
-        new_prob = Z[self.cur_cat] / tf.reduce_sum(Z)
-        new_prob = self.sess.run(new_prob)
+        Z = self.sess.run(tf.exp(Z))
+        sum_Z = self.sess.run(tf.reduce_sum(Z))
+        new_prob = Z[self.cur_cat] / sum_Z
         d = old_d + feature_i * (self.probs[data_id] - new_prob)
+        d = self.sess.run(d)
         self.probs[data_id] = new_prob
         return d
 
@@ -96,18 +95,18 @@ class sag4crf:
     def sag_training(self):
         iter = 0
         epoch = 0
+        #d = tf.zeros([851968,1], dtype=tf.float64)
         d = np.zeros(851968)
         then = time.time()
         print('start training')
         while epoch<self.max_iter:
             data_id = self.cur_tr_fold_seq[iter]
             x_i,y_i = self.custom_random_sampler(data_id)
-            feat_i = build_feature.set_feature_mat(x_i,256)
+            feat_i = tf.convert_to_tensor(build_feature.set_feature_mat(x_i,256))
             d = self.compute_d(d,data_id,feat_i)
-            w = (1-self.alpha*self.reg_lam)*self.weights[self.cur_cat,:] - (self.alpha/self.tot_data_seen)*d
-            self.weights[self.cur_cat, :] = w
-            # w = self.sess.run(w)
-            # self.sess.run(tf.scatter_update(self.weights, indices=self.cur_cat, updates=w))
+            w = self.sess.run((1-self.alpha*self.reg_lam)*self.weights[self.cur_cat,:])
+            w = w - (self.alpha/self.tot_data_seen)*d
+            self.sess.run(tf.scatter_update(self.weights, indices=self.cur_cat, updates=w))
             iter += 1
 
             if iter >= self.cur_tr_fold_size:
