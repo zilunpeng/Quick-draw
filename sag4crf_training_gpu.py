@@ -100,8 +100,7 @@ class sag4crf:
             feat_i = tf.convert_to_tensor(build_feature.set_feature_mat(x_i,256))
             d = self.compute_d(d,data_id,feat_i)
             w = (1-self.alpha*self.reg_lam)*self.weights[self.cur_cat,:] - (self.alpha/self.tot_data_seen)*d
-            self.weights = tf.assign(self.weights[self.cur_cat, :], w)
-            #self.weights[self.cur_cat, :] = w
+            tf.scatter_update(self.weights, indices=self.cur_cat, updates=w)
             iter += 1
 
             if iter >= self.cur_tr_fold_size:
