@@ -21,8 +21,9 @@ class sag4crf:
         self.cur_cat = 0
         self.read_category(self.cur_cat)
 
-        self.weights = tf.get_variable("weights",shape=[self.num_cats, 851968],dtype=tf.float64,initializer=tf.zeros_initializer)
-        self.sess.run(self.weights.initializer)
+        # self.weights = tf.get_variable("weights",shape=[self.num_cats, 851968],dtype=tf.float64,initializer=tf.zeros_initializer)
+        # self.sess.run(self.weights.initializer)
+        self.weights = np.zeros((self.num_cats, 851968))
         self.tot_data_seen = 0
 
     def init_all_cats(self,data_dir):
@@ -103,8 +104,9 @@ class sag4crf:
             feat_i = build_feature.set_feature_mat(x_i,256)
             d = self.compute_d(d,data_id,feat_i)
             w = (1-self.alpha*self.reg_lam)*self.weights[self.cur_cat,:] - (self.alpha/self.tot_data_seen)*d
-            w = self.sess.run(w)
-            self.sess.run(tf.scatter_update(self.weights, indices=self.cur_cat, updates=w))
+            self.weights[self.cur_cat, :] = w
+            # w = self.sess.run(w)
+            # self.sess.run(tf.scatter_update(self.weights, indices=self.cur_cat, updates=w))
             iter += 1
 
             if iter >= self.cur_tr_fold_size:
