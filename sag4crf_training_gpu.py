@@ -5,7 +5,6 @@ import pandas as pd
 import tensorflow as tf
 import build_feature
 from average_predictions import mapk
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 class sag4crf:
 
@@ -64,7 +63,9 @@ class sag4crf:
         #     Z = tf.exp(tf.tensordot(self.weights, feature_i, axes=[[1],[0]]))
         #     new_prob = Z[self.cur_cat] / tf.reduce_sum(Z)
         #     d = old_d + feature_i * (self.probs[data_id] - new_prob)
-        Z = tf.exp(tf.tensordot(self.weights, feature_i, axes=[[1], [0]]))
+        a = self.weights
+        b = feature_i
+        Z = tf.exp(tf.tensordot(a, b, axes=[[1], [0]]))
         new_prob = Z[self.cur_cat] / tf.reduce_sum(Z)
         d = old_d + feature_i * (self.probs[data_id] - new_prob)
         self.probs[data_id] = self.sess.run(new_prob)
