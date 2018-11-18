@@ -76,7 +76,7 @@ class sag4crf:
         return x_i, y_i
 
     def get_val_err(self):
-        predictions = np.zeros((self.cur_val_data_size, 3))
+        predictions = []
         with tf.device('/device:CPU:0'):
         # with tf.device('/device:GPU:0'):
             for i, val_data in self.cur_val_data_fold.iterrows():
@@ -84,8 +84,9 @@ class sag4crf:
                 val_data = tf.convert_to_tensor(build_feature.set_feature_mat(val_data,256))
                 Z = tf.math.exp(tf.tensordot(self.weights, val_data, axes=[[1],[0]]))
                 _, predictions_i = tf.math.top_k(Z, k=3, sorted=True)
-                predictions[i, :] = self.sess.run(predictions_i)
-        return mapk(actual=np.ones(self.cur_val_data_size)*self.cur_cat, predicted=predictions, k=3)
+                predictions.append(predictions_i)
+            predictions = self.sess.run(predictions)
+        return mapk(actual=np.matrix(np.zeros((self.cur_val_data_size),dtype=np.int8)), predicted=np.array(predictions), k=3)
 
     def sag_training(self):
         iter = 0
@@ -115,5 +116,4 @@ class sag4crf:
         return w
 
 crf = sag4crf(data_dir='cv_simplified',fold_num=1,regularization_param=0.001,step_size=0.000001,maximum_iteration=3*340,err_tolerance=0.00001)
-crf.get_val_err()
 crf.sag_training()
