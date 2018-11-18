@@ -63,7 +63,7 @@ class sag4crf:
             new_prob = Z[self.cur_cat] / tf.reduce_sum(Z)
             d = old_d + feature_i * (self.probs[data_id] - new_prob)
         self.probs[data_id] = self.sess.run(new_prob)
-        return d
+        return self.sess.run(d)
 
     def custom_random_sampler(self, data_id):
         x_i = self.cur_tr_data_fold.loc[data_id,'drawing']
