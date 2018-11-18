@@ -58,7 +58,8 @@ class sag4crf:
         self.read_category(self.cur_cat)
 
     def compute_d(self, old_d, data_id, feature_i):
-        Z = tf.exp(tf.tensordot(self.weights, feature_i, axes=[[1], [0]]))
+        Z = self.sess.run(tf.tensordot(self.weights, feature_i, axes=[[1], [0]]))
+        Z = tf.exp(Z)
         Z = self.sess.run(Z)
         new_prob = Z[self.cur_cat] / tf.reduce_sum(Z)
         new_prob = self.sess.run(new_prob)
