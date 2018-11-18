@@ -5,6 +5,7 @@ import pandas as pd
 import tensorflow as tf
 import build_feature
 from average_predictions import mapk
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 class sag4crf:
 
