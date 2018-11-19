@@ -21,7 +21,7 @@ class sag4crf:
         self.cur_cat = 0
         self.read_category(self.cur_cat)
 
-        self.weights = tf.get_variable("weights",shape=[self.num_cats, 851968],dtype=tf.float64,initializer=tf.zeros_initializer)
+        self.weights = tf.get_variable("weights",shape=[self.num_cats, 851968],dtype=tf.float32,initializer=tf.zeros_initializer)
         self.sess.run(self.weights.initializer)
         self.tot_data_seen = 0
 
@@ -102,7 +102,7 @@ class sag4crf:
         while epoch<self.max_iter:
             data_id = self.cur_tr_fold_seq[iter]
             x_i,y_i = self.custom_random_sampler(data_id)
-            feat_i = tf.convert_to_tensor(build_feature.set_feature_mat(x_i,256))
+            feat_i = tf.convert_to_tensor(build_feature.set_feature_mat(x_i,256), dtype=tf.float32)
             d = self.compute_d(d,data_id,feat_i)
             w = self.sess.run((1-self.alpha*self.reg_lam)*self.weights[self.cur_cat,:])
             w = w - (self.alpha/self.tot_data_seen)*d
