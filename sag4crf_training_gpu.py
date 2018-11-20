@@ -10,19 +10,20 @@ class sag4crf:
 
     def __init__(self, data_dir, fold_num, regularization_param, step_size, maximum_iteration, err_tolerance):
         self.data_dir = data_dir
-        self.reg_lam = regularization_param
+        self.reg_lam = tf.constant(regularization_param)
+        self.alpha = tf.constant(step_size)
         self.max_iter = maximum_iteration
         self.delta = err_tolerance
         self.fold_num = fold_num
-        self.alpha = step_size
-        self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
+        self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
         self.init_all_cats(data_dir)
         self.cur_cat = 0
         self.read_category(self.cur_cat)
 
-        self.weights = tf.get_variable("weights",shape=[self.num_cats, 851968],dtype=tf.float32,initializer=tf.zeros_initializer)
-        self.sess.run(self.weights.initializer)
+        self.weights = tf.Variable(initial_value=tf.zeros([self.num_cats, 851968]))
+        self.d = tf.Variable(initial_value=tf.zeros([851968]))
+        self.sess.run(tf.global_variables_initializer())
         self.tot_data_seen = 0
 
     def init_all_cats(self,data_dir):
@@ -56,22 +57,23 @@ class sag4crf:
         np.save(file=self.cur_cat_path+'/probs.npy',arr=self.probs)
         self.read_category(self.cur_cat)
 
-    def compute_d(self, old_d, data_id, feature_i):
-        Z = self.sess.run(tf.tensordot(self.weights, feature_i, axes=[[1], [0]]))
-        Z = self.sess.run(tf.exp(Z))
-        sum_Z = self.sess.run(tf.reduce_sum(Z))
-        new_prob = Z[self.cur_cat] / sum_Z
-        d = old_d + feature_i * (self.probs[data_id] - new_prob)
-        d = self.sess.run(d)
-        self.probs[data_id] = new_prob
-        return d
+    def get_new_prob(self, feature_i):
+        probs = tf.tensordot(self.weights, feature_i, axes=[[1], [0]])
+        probs = tf.nn.softmax(probs)
+        return probs[self.cur_cat]
+
+    def get_w(self, old_prob, feature_i, new_prob, total_data_seen):
+        d = self.d.assign(self.d + feature_i * (old_prob - new_prob))
+        return (tf.constant(1.0)-self.alpha*self.reg_lam)*self.weights[self.cur_cat,:] - (self.alpha/tf.convert_to_tensor(total_data_seen, dtype=tf.float32))*d
+
+    def update_w(self, w):
+        return tf.scatter_update(self.weights, indices=self.cur_cat, updates=w)
 
     def custom_random_sampler(self, data_id):
         x_i = self.cur_tr_data_fold.loc[data_id,'drawing']
-        y_i = self.cur_cat
         if self.cat_visit_freq[self.cur_cat] == 1:
             self.tot_data_seen += 1
-        return x_i, y_i
+        return x_i
 
     def get_val_err(self):
         predictions = []
@@ -95,20 +97,28 @@ class sag4crf:
     def sag_training(self):
         iter = 0
         epoch = 0
-        #d = tf.zeros([851968,1], dtype=tf.float64)
-        d = np.zeros(851968)
+
+        feat_i_ph = tf.placeholder(dtype=tf.float32)
+        get_new_prob = self.get_new_prob(feat_i_ph)
+        old_prob_ph = tf.placeholder(dtype=tf.float32)
+        new_prob_ph = tf.placeholder(dtype=tf.float32)
+        tot_data_seen_ph = tf.placeholder(dtype=tf.float32)
+        get_w = self.get_w(old_prob_ph, feat_i_ph, new_prob_ph,tot_data_seen_ph)
+        w_ph = tf.placeholder(dtype=tf.float32)
+        update_w = self.update_w(w_ph)
+
         then = time.time()
         print('start training')
         while epoch<self.max_iter:
             data_id = self.cur_tr_fold_seq[iter]
-            x_i,y_i = self.custom_random_sampler(data_id)
-            feat_i = tf.convert_to_tensor(build_feature.set_feature_mat(x_i,256), dtype=tf.float32)
-            d = self.compute_d(d,data_id,feat_i)
-            w = self.sess.run((1-self.alpha*self.reg_lam)*self.weights[self.cur_cat,:])
-            w = w - (self.alpha/self.tot_data_seen)*d
-            self.sess.run(tf.scatter_update(self.weights, indices=self.cur_cat, updates=w))
-            iter += 1
+            x_i = self.custom_random_sampler(data_id)
+            feat_i = build_feature.set_feature_mat(x_i,256)
 
+            new_prob = self.sess.run(get_new_prob, {feat_i_ph: feat_i})
+            w = self.sess.run(get_w, {old_prob_ph:self.probs[data_id], new_prob_ph:new_prob, feat_i_ph:feat_i, tot_data_seen_ph:self.tot_data_seen})
+            self.sess.run(update_w, {w_ph:w})
+
+            iter += 1
             if iter >= self.cur_tr_fold_size:
                 now = time.time()
                 print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Start validating.')
