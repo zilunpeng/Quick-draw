@@ -75,24 +75,9 @@ class sag4crf:
             self.tot_data_seen += 1
         return x_i
 
-    def get_val_err(self):
-        predictions = []
-        # with tf.device('/cpu:0'):
-        #     for i, val_data in self.cur_val_data_fold.iterrows():
-        #         val_data = val_data['drawing']
-        #         val_data = tf.convert_to_tensor(build_feature.set_feature_mat(val_data,256))
-        #         Z = tf.exp(tf.tensordot(self.weights, val_data, axes=[[1],[0]]))
-        #         _, predictions_i = tf.nn.top_k(Z, k=3, sorted=True)
-        #         predictions.append(predictions_i)
-        #     predictions = self.sess.run(predictions)
-        for i, val_data in self.cur_val_data_fold.iterrows():
-            val_data = val_data['drawing']
-            val_data = tf.convert_to_tensor(build_feature.set_feature_mat(val_data, 256))
-            Z = tf.exp(tf.tensordot(self.weights, val_data, axes=[[1], [0]]))
-            _, predictions_i = tf.nn.top_k(Z, k=3, sorted=True)
-            predictions.append(predictions_i)
-        predictions = self.sess.run(predictions)
-        return mapk(actual=np.matrix(np.ones((self.cur_val_data_size),dtype=np.int8)*self.cur_cat), predicted=np.array(predictions), k=3)
+    def get_predictions_i(self, val_data):
+        Z = tf.exp(tf.tensordot(self.weights, val_data, axes=[[1], [0]]))
+        _, predictions_i = tf.nn.top_k(Z, k=3, sorted=True)
 
     def sag_training(self):
         iter = 0
@@ -106,6 +91,8 @@ class sag4crf:
         get_w = self.get_w(old_prob_ph, feat_i_ph, new_prob_ph,tot_data_seen_ph)
         w_ph = tf.placeholder(dtype=tf.float32)
         update_w = self.update_w(w_ph)
+        val_data_i = tf.placeholder(dtype=tf.float32)
+        get_predictions_i = self.get_predictions_i(val_data_i)
 
         then = time.time()
         print('start training')
@@ -122,8 +109,13 @@ class sag4crf:
             if iter >= self.cur_tr_fold_size:
                 now = time.time()
                 print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Start validating.')
-                val_err = self.get_val_err()
+                predictions = []
+                for i, val_data in self.cur_val_data_fold.iterrows():
+                    val_data = build_feature.set_feature_mat(val_data['drawing'], 256)
+                    predictions.append(self.sess.run(get_predictions_i, {val_data_i:val_data}))
+                val_err = mapk(actual=np.matrix(np.ones((self.cur_val_data_size), dtype=np.int8) * self.cur_cat), predicted=np.array(predictions), k=3)
                 print('epoch=%d. trained on category '%(epoch) + self.cat_names[self.cur_cat] + '. NLL on validation set is %.5f'%(val_err))
+
                 self.update_category()
                 then = time.time()
                 iter = 0
