@@ -104,7 +104,7 @@ class sag4crf:
             new_prob = self.sess.run(get_new_prob, {feat_i_ph: feat_i})
             w = self.sess.run(get_w, {old_prob_ph:self.probs[data_id], new_prob_ph:new_prob, feat_i_ph:feat_i, tot_data_seen_ph:self.tot_data_seen})
             self.sess.run(update_w, {w_ph:w})
-            print('iter=%d'%(iter)+'prob=%.2f'%(new_prob))
+            if iter%200 == 0: print('iter=%d'%(iter)+' prob=%.7f'%(new_prob))
 
             iter += 1
             if iter >= self.cur_tr_fold_size:
