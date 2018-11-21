@@ -92,7 +92,7 @@ class sag4crf:
 
             if iter % 200 == 0: print('iter=%d' % (iter) + ' prob=%.7f' % (self.probs[data_id]))
             iter += 1
-            if self.iter >= self.cur_tr_fold_size:
+            if iter >= self.cur_tr_fold_size:
                 now = time.time()
                 print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Start validating.')
                 val_err = self.get_val_err()
