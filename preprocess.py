@@ -11,6 +11,14 @@ def get_num_data_per_category(dir_name, is_printing):
         tr_sizes.append(data.shape[0])
     if is_printing: print(tr_sizes)
 
+def get_most_cv_tr_size(dir_name):
+    max_size = 0
+    for cat_name in os.listdir(dir_name):
+        data = pd.read_pickle(dir_name + '/' + cat_name + '/tr1.pkl')
+        data = data.shape[0]
+        if data > max_size: max_size=data
+    print('maximum training data size in cv_simplified is ' + str(max_size))
+
 def train_test_split(dir_name,num_folds):
     kf = KFold(n_splits=num_folds,shuffle=True)
     for filename in os.listdir(dir_name):
@@ -37,4 +45,5 @@ def train_test_split(dir_name,num_folds):
         else:
             print(cat_name + ' already exists')
 
-train_test_split('train_simplified',10)
+get_most_cv_tr_size('cv_simplified')
+#train_test_split('train_simplified',10)
