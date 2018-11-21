@@ -117,5 +117,4 @@ class sag4crf:
         return w
 
 crf = sag4crf(data_dir='cv_simplified',fold_num=1,regularization_param=0.001,step_size=0.0001,maximum_iteration=3*340,err_tolerance=0.00001)
-x = crf.get_val_acc()
 crf.sag_training()
