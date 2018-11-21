@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import build_feature
 from scipy.special import logsumexp
+from average_predictions import mapk
 
 class sag4crf:
 
@@ -77,6 +78,18 @@ class sag4crf:
         wgt_err = np.sum(np.diag(self.weights @ np.transpose(self.weights)))
         return val_err/self.cur_val_data_size + (self.reg_lam/2)*wgt_err
 
+    def get_tr_err(self):
+        return (1/self.cur_tr_fold_size)*np.sum(-np.log(self.probs)) + (self.reg_lam/2)*np.sum(np.diag(self.weights @ np.transpose(self.weights)))
+
+    def get_val_acc(self):
+        predictions = []
+        for i, val_data in self.cur_val_data_fold.iterrows():
+            val_data = build_feature.set_feature_mat(val_data['drawing'], 256)
+            prediction = np.exp(self.weights@val_data)
+            prediction = np.argsort(prediction)
+            predictions.append(prediction[-3:])
+        return mapk(actual=np.matrix(np.ones(self.cur_val_data_size, dtype=np.int8) * self.cur_cat), predicted=np.array(predictions), k=3)
+
     def sag_training(self):
         iter = 0
         epoch = 0
@@ -90,13 +103,13 @@ class sag4crf:
             w = (1-self.alpha*self.reg_lam)*self.weights[self.cur_cat,:] - (self.alpha/self.tot_data_seen)*d
             self.weights[self.cur_cat, :] = w
 
-            if iter % 200 == 0: print('iter=%d' % (iter) + ' prob=%.7f' % (self.probs[data_id]))
+            if iter % 50000 == 0: print('iter=%d' % (iter) + ' prob=%.7f' % (self.probs[data_id]))
             iter += 1
             if iter >= self.cur_tr_fold_size:
                 now = time.time()
-                print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Start validating.')
-                val_err = self.get_val_err()
-                print('epoch=%d. trained on category '%(epoch) + self.cat_names[self.cur_cat] + '. NLL on validation set is %.5f'%(val_err))
+                print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Training error is %.6f'%(self.get_tr_err()))
+                val_acc = self.get_val_acc()
+                print('epoch=%d. trained on category '%(epoch) + self.cat_names[self.cur_cat] + '. score on validation set is %.5f'%(val_acc))
                 self.update_category()
                 then = time.time()
                 iter = 0
@@ -104,4 +117,5 @@ class sag4crf:
         return w
 
 crf = sag4crf(data_dir='cv_simplified',fold_num=1,regularization_param=0.001,step_size=0.0001,maximum_iteration=3*340,err_tolerance=0.00001)
+x = crf.get_val_acc()
 crf.sag_training()
