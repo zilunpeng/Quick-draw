@@ -10,7 +10,7 @@ class sag4crf:
     def __init__(self, data_dir, fold_num, regularization_param, step_size, maximum_iteration, err_tolerance):
         self.data_dir = data_dir
         self.reg_lam = regularization_param
-        self.max_iter = maximum_iteration
+        self.max_epoch = maximum_iteration
         self.delta = err_tolerance
         self.fold_num = fold_num
         self.alpha = step_size
@@ -83,7 +83,7 @@ class sag4crf:
         d = np.zeros(851968)
         then = time.time()
         print('start training')
-        while iter<self.max_iter:
+        while epoch<self.max_epoch:
             data_id,x_i = self.custom_random_sampler(iter)
             feat_i = build_feature.set_feature_mat(x_i,256)
             d = self.compute_d(d,data_id,feat_i)
