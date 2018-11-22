@@ -8,7 +8,7 @@ from average_predictions import mapk
 
 class sag4crf:
 
-    def __init__(self, data_dir, fold_num, regularization_param, step_size, maximum_iteration, err_tolerance):
+    def __init__(self, data_dir, fold_num, regularization_param, step_size, maximum_iteration, err_tolerance, num_tr_data, num_val_data):
         self.data_dir = data_dir
         self.reg_lam = regularization_param
         self.alpha = step_size
@@ -17,6 +17,8 @@ class sag4crf:
         self.fold_num = fold_num
         self.init_all_cats(data_dir)
 
+        self.num_tr_data = num_tr_data
+        self.num_val_data = num_val_data
         self.tot_data_seen = 0
         self.cur_cat = 0
         self.read_category(self.cur_cat)
@@ -37,7 +39,8 @@ class sag4crf:
         self.cur_tr_data_path = self.cur_cat_path + '/tr' + str(self.fold_num) + '.pkl'
         self.cur_tr_data_fold = pd.read_pickle(self.cur_tr_data_path)
         self.cur_tr_fold_size = self.cur_tr_data_fold.shape[0]
-        self.cur_tr_fold_seq = np.random.permutation(self.cur_tr_fold_size)
+        self.cur_tr_fold_seq = np.random.choice(self.cur_tr_fold_size, self.num_tr_data, replace=False)
+        self.data_freq_counter = (np.zeros(self.cur_tr_fold_size) if self.cat_visit_freq[self.cur_cat]==0 else np.load(self.cur_cat_path+'data_freq_counter.npy'))
         self.cat_visit_freq[self.cur_cat] += 1
         self.init_val_fold()
 
@@ -45,9 +48,11 @@ class sag4crf:
         self.cur_val_data_path = self.cur_cat_path + '/val' + str(self.fold_num) + '.pkl'
         self.cur_val_data_fold = pd.read_pickle(self.cur_val_data_path)
         self.cur_val_data_size = self.cur_val_data_fold.shape[0]
+        self.cur_val_fold_seq = np.random.choice(self.cur_val_data_size, self.num_val_data, replace=False)
 
     def update_category(self):
         self.cur_cat= (self.cur_cat+1 if self.cur_cat<self.num_cats-1 else 0)
+        np.save(file=self.cur_cat_path + '/data_freq_counter.npy', arr=self.data_freq_counter)
         self.read_category(self.cur_cat)
 
     def build_training_session(self, tr_graph, weights_ph, d_ph, probs_ph):
@@ -93,15 +98,16 @@ class sag4crf:
 
     def get_val_acc(self, val_sess, predictions_i, feat_i_ph, weights_ph, weights):
         predictions = []
-        for i, val_data in self.cur_val_data_fold.iterrows():
-            val_data = build_feature.set_feature_mat(val_data['drawing'], 256)
+        for data_id in self.cur_val_fold_seq:
+            val_data = build_feature.set_feature_mat(self.cur_val_data_fold.loc[data_id,'drawing'])
             predictions.append(val_sess.run(predictions_i, feed_dict={feat_i_ph: val_data, weights_ph:weights}))
         return mapk(actual=np.matrix(np.ones((self.cur_val_data_size), dtype=np.int8) * self.cur_cat), predicted=np.array(predictions), k=3)
 
     def custom_random_sampler(self, data_id):
         x_i = self.cur_tr_data_fold.loc[data_id,'drawing']
-        if self.cat_visit_freq[self.cur_cat] == 1:
+        if self.data_freq_counter[data_id] == 0:
             self.tot_data_seen += 1
+            self.data_freq_counter[data_id] = 1
         return x_i
 
     def sag_training(self):
@@ -119,22 +125,19 @@ class sag4crf:
         while epoch<self.max_iter:
             data_id = self.cur_tr_fold_seq[iter]
             x_i = self.custom_random_sampler(data_id)
-
             feat_i = build_feature.set_feature_mat(x_i)
             tr_sess.run([update_weights, update_probs], feed_dict={data_id_ph:data_id, cur_cat_ph:self.cur_cat, feat_i_ph:feat_i, total_data_seen_ph:self.tot_data_seen})
 
-
             iter += 1
-            if iter >= 100:
-            # if iter >= self.cur_tr_fold_size:
+            if iter > self.cur_tr_fold_size:
                 now = time.time()
                 print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Start validating.')
-                # weights = tr_sess.run(weights_ph)
-                # print('epoch=%d. trained on category '%(epoch) + self.cat_names[self.cur_cat] + '. score on validation set is %.5f'%(self.get_val_acc(val_sess, predictions_i, feat_i_val_ph, weights_val_ph, weights)))
+                weights = tr_sess.run(weights_ph)
+                print('epoch=%d. trained on category '%(epoch) + self.cat_names[self.cur_cat] + '. score on validation set is %.5f'%(self.get_val_acc(val_sess, predictions_i, feat_i_val_ph, weights_val_ph, weights)))
                 self.update_category()
                 then = time.time()
                 iter = 0
                 epoch += 1
 
-crf = sag4crf(data_dir='cv_simplified',fold_num=1,regularization_param=0.001,step_size=0.0001,maximum_iteration=10*340,err_tolerance=0.00001,num_tr_data=1000,num_te_data=20)
+crf = sag4crf(data_dir='cv_simplified',fold_num=1,regularization_param=0.001,step_size=0.0001,maximum_iteration=10*340,err_tolerance=0.00001,num_tr_data=800,num_val_data=20)
 crf.sag_training()
