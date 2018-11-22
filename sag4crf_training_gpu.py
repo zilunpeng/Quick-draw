@@ -122,7 +122,6 @@ class sag4crf:
             feat_i = build_feature.set_feature_mat(x_i,256)
             tr_sess.run([update_weights, update_probs], feed_dict={data_id_ph:data_id, cur_cat_ph:self.cur_cat, feat_i_ph:feat_i, total_data_seen_ph:self.tot_data_seen})
 
-            if iter%200 == 0: print('iter=%d'%(iter))
             iter += 1
             if iter >= self.cur_tr_fold_size:
                 now = time.time()
