@@ -10,21 +10,16 @@ class sag4crf:
 
     def __init__(self, data_dir, fold_num, regularization_param, step_size, maximum_iteration, err_tolerance):
         self.data_dir = data_dir
-        self.reg_lam = tf.constant(regularization_param)
-        self.alpha = tf.constant(step_size)
+        self.reg_lam = regularization_param
+        self.alpha = step_size
         self.max_iter = maximum_iteration
         self.delta = err_tolerance
         self.fold_num = fold_num
-        self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-
         self.init_all_cats(data_dir)
+
+        self.tot_data_seen = 0
         self.cur_cat = 0
         self.read_category(self.cur_cat)
-
-        self.weights = tf.Variable(initial_value=tf.zeros([self.num_cats, 851968]))
-        self.d = tf.Variable(initial_value=tf.zeros([851968]))
-        self.sess.run(tf.global_variables_initializer())
-        self.tot_data_seen = 0
 
     def init_all_cats(self,data_dir):
         self.cat_names = self.get_categories(data_dir)
@@ -43,7 +38,6 @@ class sag4crf:
         self.cur_tr_data_fold = pd.read_pickle(self.cur_tr_data_path)
         self.cur_tr_fold_size = self.cur_tr_data_fold.shape[0]
         self.cur_tr_fold_seq = np.random.permutation(self.cur_tr_fold_size)
-        self.probs = (np.zeros(851968) if self.cat_visit_freq[self.cur_cat] == 0 else np.load(self.cur_cat_path+'/probs.npy'))
         self.cat_visit_freq[self.cur_cat] += 1
         self.init_val_fold()
 
@@ -54,20 +48,55 @@ class sag4crf:
 
     def update_category(self):
         self.cur_cat= (self.cur_cat+1 if self.cur_cat<self.num_cats-1 else 0)
-        np.save(file=self.cur_cat_path+'/probs.npy',arr=self.probs)
         self.read_category(self.cur_cat)
 
-    def get_new_prob(self, feature_i):
-        probs = tf.tensordot(self.weights, feature_i, axes=[[1], [0]])
-        probs = tf.nn.softmax(probs)
-        return probs[self.cur_cat]
+    def build_training_session(self, tr_graph, weights_ph, d_ph, probs_ph):
+        tr_sess = tf.Session(graph=tr_graph, config=tf.ConfigProto(log_device_placement=True))
+        tr_sess.run(tf.variables_initializer([weights_ph, d_ph, probs_ph]))
+        return tr_sess
 
-    def get_w(self, old_prob, feature_i, new_prob, total_data_seen):
-        d = self.d.assign(self.d + feature_i * (old_prob - new_prob))
-        return (tf.constant(1.0)-self.alpha*self.reg_lam)*self.weights[self.cur_cat,:] - (self.alpha/tf.convert_to_tensor(total_data_seen, dtype=tf.float32))*d
+    def build_training_graph(self):
+        g = tf.Graph()
+        with g.as_default():
+            alpha = tf.constant(self.alpha, dtype=tf.float32)
+            reg_lam = tf.constant(self.reg_lam, dtype=tf.float32)
 
-    def update_w(self, w):
-        return tf.scatter_update(self.weights, indices=self.cur_cat, updates=w)
+            weights_ph = tf.Variable(tf.zeros([self.num_cats, 851968], dtype=tf.float32))
+            probs_ph = tf.Variable(tf.zeros([self.num_cats, 306026], dtype=tf.float32))
+            d_ph = tf.Variable(tf.zeros([851968], dtype=tf.float32))
+            feat_i_ph = tf.placeholder(tf.float32, shape=(851968))
+            data_id_ph = tf.placeholder(tf.int32)
+            cur_cat_ph = tf.placeholder(tf.int32)
+            total_data_seen_ph = tf.placeholder(tf.float32)
+
+            probs = tf.tensordot(weights_ph, feat_i_ph, axes=[[1], [0]])
+            probs = tf.nn.softmax(probs)
+            new_prob = probs[cur_cat_ph]
+            update_d = d_ph.assign(d_ph+ feat_i_ph * (probs_ph[cur_cat_ph, data_id_ph] - new_prob))
+            w = (tf.constant(1.0)-alpha*reg_lam)*weights_ph[cur_cat_ph,:] - (alpha/total_data_seen_ph)*update_d
+            update_weights = tf.scatter_update(weights_ph, indices=cur_cat_ph, updates=w)
+            update_probs = probs_ph[cur_cat_ph, data_id_ph].assign(new_prob)
+        return g, update_weights, update_probs, data_id_ph, cur_cat_ph, feat_i_ph, total_data_seen_ph, weights_ph, d_ph, probs_ph
+
+    def build_validating_session(self, val_graph):
+        val_sess = tf.Session(graph=val_graph, config=tf.ConfigProto(log_device_placement=True))
+        return val_sess
+
+    def build_validating_graph(self):
+        g = tf.Graph()
+        with g.as_default():
+            feat_i_ph = tf.placeholder(tf.float32, shape=(851968))
+            weights_ph = tf.placeholder(tf.float32, shape=(self.num_cats, 851968))
+            Z = tf.exp(tf.tensordot(weights_ph, feat_i_ph, axes=[[1], [0]]))
+            _, predictions_i = tf.nn.top_k(Z, k=3, sorted=True)
+        return g, predictions_i, feat_i_ph, weights_ph
+
+    def get_val_acc(self, val_sess, predictions_i, feat_i_ph, weights_ph, weights):
+        predictions = []
+        for i, val_data in self.cur_val_data_fold.iterrows():
+            val_data = build_feature.set_feature_mat(val_data['drawing'], 256)
+            predictions.append(val_sess.run(predictions_i, feed_dict={feat_i_ph: val_data, weights_ph:weights}))
+        return mapk(actual=np.matrix(np.ones((self.cur_val_data_size), dtype=np.int8) * self.cur_cat), predicted=np.array(predictions), k=3)
 
     def custom_random_sampler(self, data_id):
         x_i = self.cur_tr_data_fold.loc[data_id,'drawing']
@@ -75,24 +104,15 @@ class sag4crf:
             self.tot_data_seen += 1
         return x_i
 
-    def get_predictions_i(self, val_data):
-        Z = tf.exp(tf.tensordot(self.weights, val_data, axes=[[1], [0]]))
-        _, predictions_i = tf.nn.top_k(Z, k=3, sorted=True)
-
     def sag_training(self):
         iter = 0
         epoch = 0
 
-        feat_i_ph = tf.placeholder(dtype=tf.float32)
-        get_new_prob = self.get_new_prob(feat_i_ph)
-        old_prob_ph = tf.placeholder(dtype=tf.float32)
-        new_prob_ph = tf.placeholder(dtype=tf.float32)
-        tot_data_seen_ph = tf.placeholder(dtype=tf.float32)
-        get_w = self.get_w(old_prob_ph, feat_i_ph, new_prob_ph,tot_data_seen_ph)
-        w_ph = tf.placeholder(dtype=tf.float32)
-        update_w = self.update_w(w_ph)
-        val_data_i = tf.placeholder(dtype=tf.float32)
-        get_predictions_i = self.get_predictions_i(val_data_i)
+        tr_graph, update_weights, update_probs, data_id_ph, cur_cat_ph, feat_i_ph, total_data_seen_ph, weights_ph, d_ph, probs_ph = self.build_training_graph()
+        tr_sess = self.build_training_session(tr_graph, weights_ph, d_ph, probs_ph)
+
+        val_graph, predictions_i, feat_i_val_ph, weights_val_ph = self.build_validating_graph()
+        val_sess = self.build_validating_session(val_graph)
 
         then = time.time()
         print('start training')
@@ -100,28 +120,19 @@ class sag4crf:
             data_id = self.cur_tr_fold_seq[iter]
             x_i = self.custom_random_sampler(data_id)
             feat_i = build_feature.set_feature_mat(x_i,256)
+            tr_sess.run([update_weights, update_probs], feed_dict={data_id_ph:data_id, cur_cat_ph:self.cur_cat, feat_i_ph:feat_i, total_data_seen_ph:self.tot_data_seen})
 
-            new_prob = self.sess.run(get_new_prob, {feat_i_ph: feat_i})
-            w = self.sess.run(get_w, {old_prob_ph:self.probs[data_id], new_prob_ph:new_prob, feat_i_ph:feat_i, tot_data_seen_ph:self.tot_data_seen})
-            self.sess.run(update_w, {w_ph:w})
-            if iter%200 == 0: print('iter=%d'%(iter)+' prob=%.7f'%(new_prob))
-
+            if iter%200 == 0: print('iter=%d'%(iter))
             iter += 1
             if iter >= self.cur_tr_fold_size:
                 now = time.time()
                 print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Start validating.')
-                predictions = []
-                for i, val_data in self.cur_val_data_fold.iterrows():
-                    val_data = build_feature.set_feature_mat(val_data['drawing'], 256)
-                    predictions.append(self.sess.run(get_predictions_i, {val_data_i:val_data}))
-                val_err = mapk(actual=np.matrix(np.ones((self.cur_val_data_size), dtype=np.int8) * self.cur_cat), predicted=np.array(predictions), k=3)
-                print('epoch=%d. trained on category '%(epoch) + self.cat_names[self.cur_cat] + '. NLL on validation set is %.5f'%(val_err))
-
+                weights = tr_sess.run(weights_ph)
+                print('epoch=%d. trained on category '%(epoch) + self.cat_names[self.cur_cat] + '. score on validation set is %.5f'%(self.get_val_acc(val_sess, predictions_i, feat_i_val_ph, weights_val_ph, weights)))
                 self.update_category()
                 then = time.time()
                 iter = 0
                 epoch += 1
-        return w
 
 crf = sag4crf(data_dir='cv_simplified',fold_num=1,regularization_param=0.001,step_size=0.000001,maximum_iteration=3*340,err_tolerance=0.00001)
 crf.sag_training()
