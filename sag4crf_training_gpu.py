@@ -114,33 +114,21 @@ class sag4crf:
         val_graph, predictions_i, feat_i_val_ph, weights_val_ph = self.build_validating_graph()
         val_sess = self.build_validating_session(val_graph)
 
-        build_feature_time = 0
-        update_weights_gpu_time = 0
-
         then = time.time()
         print('start training')
         while epoch<self.max_iter:
             data_id = self.cur_tr_fold_seq[iter]
             x_i = self.custom_random_sampler(data_id)
 
-            then_feature_time = time.time()
             feat_i = build_feature.set_feature_mat(x_i)
-            now_feature_time = time.time()
-            build_feature_time = build_feature_time+now_feature_time-then_feature_time
-
-            then_gpu_time = time.time()
             tr_sess.run([update_weights, update_probs], feed_dict={data_id_ph:data_id, cur_cat_ph:self.cur_cat, feat_i_ph:feat_i, total_data_seen_ph:self.tot_data_seen})
-            now_gpu_time = time.time()
-            update_weights_gpu_time = update_weights_gpu_time+now_gpu_time-then_gpu_time
+
 
             iter += 1
             if iter >= 100:
             # if iter >= self.cur_tr_fold_size:
                 now = time.time()
                 print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Start validating.')
-                print('time spent on building feature is %.3f'%(build_feature_time) + 'time spent on gpu is %.3f'%(update_weights_gpu_time))
-                build_feature_time = 0
-                update_weights_gpu_time = 0
                 # weights = tr_sess.run(weights_ph)
                 # print('epoch=%d. trained on category '%(epoch) + self.cat_names[self.cur_cat] + '. score on validation set is %.5f'%(self.get_val_acc(val_sess, predictions_i, feat_i_val_ph, weights_val_ph, weights)))
                 self.update_category()
@@ -148,5 +136,5 @@ class sag4crf:
                 iter = 0
                 epoch += 1
 
-crf = sag4crf(data_dir='cv_simplified',fold_num=1,regularization_param=0.001,step_size=0.0001,maximum_iteration=3*340,err_tolerance=0.00001)
+crf = sag4crf(data_dir='cv_simplified',fold_num=1,regularization_param=0.001,step_size=0.0001,maximum_iteration=10*340,err_tolerance=0.00001,num_tr_data=1000,num_te_data=20)
 crf.sag_training()
