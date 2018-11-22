@@ -101,7 +101,7 @@ class sag4crf:
         for data_id in self.cur_val_fold_seq:
             val_data = build_feature.set_feature_mat(self.cur_val_data_fold.loc[data_id,'drawing'])
             predictions.append(val_sess.run(predictions_i, feed_dict={feat_i_ph: val_data, weights_ph:weights}))
-        return mapk(actual=np.matrix(np.ones((self.cur_val_data_size), dtype=np.int8) * self.cur_cat), predicted=np.array(predictions), k=3)
+        return mapk(actual=np.matrix(np.ones((self.num_val_data), dtype=np.int8) * self.cur_cat), predicted=np.array(predictions), k=3)
 
     def custom_random_sampler(self, data_id):
         x_i = self.cur_tr_data_fold.loc[data_id,'drawing']
@@ -129,7 +129,7 @@ class sag4crf:
             tr_sess.run([update_weights, update_probs], feed_dict={data_id_ph:data_id, cur_cat_ph:self.cur_cat, feat_i_ph:feat_i, total_data_seen_ph:self.tot_data_seen})
 
             iter += 1
-            if iter == self.cur_tr_fold_size:
+            if iter == self.num_tr_data:
                 now = time.time()
                 print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Start validating.')
                 weights = tr_sess.run(weights_ph)
