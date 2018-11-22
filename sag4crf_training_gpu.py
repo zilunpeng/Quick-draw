@@ -124,7 +124,7 @@ class sag4crf:
             x_i = self.custom_random_sampler(data_id)
 
             then_feature_time = time.time()
-            feat_i = build_feature.set_feature_mat(x_i,256)
+            feat_i = build_feature.set_feature_mat(x_i)
             now_feature_time = time.time()
             build_feature_time = build_feature_time+now_feature_time-then_feature_time
 
@@ -134,7 +134,7 @@ class sag4crf:
             update_weights_gpu_time = update_weights_gpu_time+now_gpu_time-then_gpu_time
 
             iter += 1
-            if iter >= 30000:
+            if iter >= 100:
             # if iter >= self.cur_tr_fold_size:
                 now = time.time()
                 print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Start validating.')
