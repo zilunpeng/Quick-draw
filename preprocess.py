@@ -44,6 +44,7 @@ def train_test_split(dir_name,num_folds,num_workers):
                     np.save(cv_dir_name+"val"+str(i)+".npy", val_data[['drawing','index']].values)
                     i += 1
             print('finished creating '+cat_name)
+            break
         else:
             print(cat_name + ' already exists')
 
