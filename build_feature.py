@@ -80,7 +80,8 @@ def set_edge_feature(x, y, get_center_ngbr_coords, get_noncent_ngbr_coords, size
 
     return np.concatenate((edge_feature_tt, edge_feature_tf, edge_feature_ft))
 
-def set_feature_mat(drawing, size):
+def set_feature_mat(drawing):
+    size = 256
     feature_node = np.zeros(size*size)
     (x, y) = find_row_col_inds(drawing)
     feature_node[sub2ind(x, y, size)] = 1
@@ -96,7 +97,7 @@ if __name__ == "__main__":
     data = data.iloc[0,:]
     data = data['drawing']
     data = ast.literal_eval(data)
-    feature = set_feature_mat(data,256)
+    feature = set_feature_mat(data)
     print(feature.shape)
 # print('num non-zero: ', np.count_nonzero(feature))
 # sp_mat = scipy.sparse.csc_matrix(feature)
