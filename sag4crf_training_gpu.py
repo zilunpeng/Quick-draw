@@ -129,7 +129,7 @@ class sag4crf:
             tr_sess.run([update_weights, update_probs], feed_dict={data_id_ph:data_id, cur_cat_ph:self.cur_cat, feat_i_ph:feat_i, total_data_seen_ph:self.tot_data_seen})
 
             iter += 1
-            if iter > self.cur_tr_fold_size:
+            if iter == self.cur_tr_fold_size:
                 now = time.time()
                 print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Start validating.')
                 weights = tr_sess.run(weights_ph)
