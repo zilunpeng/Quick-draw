@@ -138,7 +138,7 @@ class sag4crf:
             # if iter >= self.cur_tr_fold_size:
                 now = time.time()
                 print('finished training on category ' + self.cat_names[self.cur_cat] + '. Took %.2f'%(now-then) + 'seconds. Start validating.')
-                print('time spent on building feature is %.3f%'%(build_feature_time) + 'time spent on gpu is %.3f'%(update_weights_gpu_time))
+                print('time spent on building feature is %.3f'%(build_feature_time) + 'time spent on gpu is %.3f'%(update_weights_gpu_time))
                 build_feature_time = 0
                 update_weights_gpu_time = 0
                 # weights = tr_sess.run(weights_ph)
