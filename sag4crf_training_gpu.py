@@ -67,7 +67,7 @@ class sag4crf:
             alpha = tf.constant(self.alpha, dtype=tf.float32)
             reg_lam = tf.constant(self.reg_lam, dtype=tf.float32)
 
-            weights_ph = tf.Variable(tf.zeros([self.num_cats, 851968], dtype=tf.float32))
+            weights_ph = tf.Variable(tf.random_normal([self.num_cats, 851968], dtype=tf.float32))
             d_ph = tf.Variable(tf.zeros([self.num_cats, 851968], dtype=tf.float32))
             probs_ph = tf.placeholder(tf.float32, shape=(self.num_cats))
             feat_i_ph = tf.placeholder(tf.float32, shape=(851968))
