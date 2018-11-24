@@ -136,7 +136,7 @@ class sag4crf:
             if iter == self.num_tr_data:
                 now = time.time()
                 d = tr_sess.run(d_ph)
-                print('epoch=%d. trained on category '%(epoch) + self.cat_names[self.cur_cat]+ '. Took %.2f'%(now-then) + 'seconds. Inf norm on d is %.3f'%(np.max(np.max(np.absolute((1/self.tot_data_seen)*d + self.reg_lam*weights)))) + '. score on validation set is %.5f'%(self.get_val_acc(val_sess, predictions_i, feat_i_val_ph, weights_val_ph, weights)))
+                print('epoch=%d. trained on category '%(epoch) + self.cat_names[self.cur_cat]+ '. Took %.2f'%(now-then) + 'seconds. Inf norm on d is %.8f'%(np.max(np.max(np.absolute((1/self.tot_data_seen)*d + self.reg_lam*weights)))) + '. score on validation set is %.5f'%(self.get_val_acc(val_sess, predictions_i, feat_i_val_ph, weights_val_ph, weights)))
                 self.update_category()
                 then = time.time()
                 iter = 0
