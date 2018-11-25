@@ -21,32 +21,29 @@ def get_most_cv_tr_size(dir_name):
         if data > max_size: max_size=data
     print('maximum training data size in cv_simplified is ' + str(max_size))
 
-def train_test_split(dir_name,num_folds,num_workers):
-    kf = KFold(n_splits=num_folds,shuffle=True)
+def train_test_split(dir_name,num_folds,num_workers,tr_data_pct):
     for filename in os.listdir(dir_name):
         cat_name = os.path.splitext(filename)[0]
-        print('creating cv files for ' + cat_name)
+        print('splitting training/testing files for ' + cat_name)
         if not os.path.exists(os.path.join('cv_simplified',cat_name,'tr1.npy')):
             data = pd.read_csv(os.path.join(dir_name,filename))
             drawings = list(map(ast.literal_eval, data['drawing']))
             with Pool(num_workers) as p:
                 data['drawing'] = p.map(build_feature.set_feature_mat, drawings)
-            data = data.drop(columns=['countrycode','key_id','timestamp',])
-            if data.shape[0] > 0:
-                i = 1
-                for tr_inds, val_inds in kf.split(data):
-                    cv_dir_name = 'cv_simplified/' + cat_name + '/'
-                    tr_data = data.iloc[tr_inds, :]
-                    np.save(cv_dir_name+"tr"+str(i)+".npy", tr_data['drawing'].values)
-
-                    val_data = data.iloc[val_inds, :]
-                    val_data = val_data.reset_index()
-                    np.save(cv_dir_name+"val"+str(i)+".npy", val_data[['drawing','index']].values)
-                    i += 1
+            data = data.drop(columns=['countrycode','key_id','timestamp','recognized','word'])
+            data_size = data.shape[0]
+            tr_te_split_ind = int(data_size*tr_data_pct)
+            data_seq = np.random.permutation(data_size)
+            tr_data = data.iloc[data_seq[:tr_te_split_ind], :]
+            val_data = data.iloc[data_seq[tr_te_split_ind+1:data_size-1], :]
+            val_data = val_data.reset_index()
+            cv_dir_name = 'cv_simplified/' + cat_name + '/'
+            np.save(cv_dir_name + "tr.npy", tr_data.values)
+            np.save(cv_dir_name + "val.npy", val_data.values)
             print('finished creating '+cat_name)
             break
         else:
             print(cat_name + ' already exists')
 
 #get_most_cv_tr_size('cv_simplified')
-train_test_split('train_simplified',10,12)
+train_test_split('train_simplified',10,12,tr_data_pct=0.8)
