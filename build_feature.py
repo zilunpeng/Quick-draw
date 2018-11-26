@@ -89,7 +89,7 @@ def set_feature_mat(drawing):
     feature_v_edge = set_edge_feature(x,y,get_up_node_coords,get_down_node_coords,size)
     feature_nw_edge = set_edge_feature(x,y,get_up_left_node_coords,get_down_right_node_coords,size)
     feature_ne_edge = set_edge_feature(x,y,get_up_right_node_coords,get_down_left_node_coords,size)
-    return np.concatenate((feature_node,feature_h_edge,feature_v_edge,feature_nw_edge,feature_ne_edge))
+    return np.array(np.concatenate((feature_node,feature_h_edge,feature_v_edge,feature_nw_edge,feature_ne_edge)),dtype=np.bool)
 
 if __name__ == "__main__":
     data = pd.read_csv('train_simplified/fence.csv')
