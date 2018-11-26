@@ -1,5 +1,6 @@
 import ast
 import os
+import sys
 import pandas as pd
 import numpy as np
 import build_feature
@@ -28,24 +29,31 @@ def train_test_split(dir_name,num_folds,num_workers,tr_data_pct):
         print('splitting training/testing files for ' + cat_name)
         if not os.path.exists(os.path.join('cv_simplified',cat_name,'tr.npy')):
             data = pd.read_csv(os.path.join(dir_name,filename))
+            #data = data[:120]
             data = data.drop(columns=['countrycode', 'key_id', 'timestamp', 'recognized', 'word'])
             data_size = data.shape[0]
             drawings = list(map(ast.literal_eval, data['drawing']))
             data = np.zeros((data_size,851968), dtype=np.bool)
-            inds = range(data_size)[0::1000]
+            inds = range(data_size)[0::100]
             for i in inds:
                 with Pool(num_workers) as p:
-                    data[i:i+1000] = p.map(build_feature.set_feature_mat, drawings[i:i+1000])
-            tr_te_split_ind = int(data_size*tr_data_pct)
-            data_seq = np.random.permutation(data_size)
-            tr_data = data[data_seq[:tr_te_split_ind],:]
-            val_data = data[data_seq[tr_te_split_ind:],:]
-            cv_dir_name = 'cv_simplified/' + cat_name + '/'
-            scipy.sparse.save_npz(cv_dir_name + "tr.npz", scipy.sparse.csc_matrix(tr_data))
-            scipy.sparse.save_npz(cv_dir_name + "val.npz", scipy.sparse.csc_matrix(val_data))
-            print('finished creating '+cat_name)
+                    data[i:i+100] = p.map(build_feature.set_feature_mat, drawings[i:i+100])
+            print('finished preprocessing')
+            data = scipy.sparse.csc_matrix(data)
+            print(sys.getsizeof(data))
+            data = pd.SparseDataFrame(data)
+            print(sys.getsizeof(data))
+            break
+            # tr_te_split_ind = int(data_size*tr_data_pct)
+            # data_seq = np.random.permutation(data_size)
+            # tr_data = data[data_seq[:tr_te_split_ind],:]
+            # val_data = data[data_seq[tr_te_split_ind:],:]
+            # cv_dir_name = 'cv_simplified/' + cat_name + '/'
+            # scipy.sparse.save_npz(cv_dir_name + "tr.npz", scipy.sparse.csc_matrix(tr_data))
+            # scipy.sparse.save_npz(cv_dir_name + "val.npz", scipy.sparse.csc_matrix(val_data))
+            # print('finished creating '+cat_name)
         else:
             print(cat_name + ' already exists')
 
 #get_most_cv_tr_size('cv_simplified')
-train_test_split('train_simplified',10,50,tr_data_pct=0.8)
+train_test_split('train_simplified',10,20,tr_data_pct=0.8)
