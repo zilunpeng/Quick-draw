@@ -34,10 +34,11 @@ def train_test_split(dir_name,num_folds,num_workers,tr_data_pct):
             data_size = data.shape[0]
             drawings = list(map(ast.literal_eval, data['drawing']))
             data = np.zeros((data_size,851968), dtype=np.bool)
-            inds = range(data_size)[0::2000]
+            inds = range(data_size)[0::100]
             for i in inds:
                 with Pool(num_workers) as p:
-                    data[i:i+2000] = p.map(build_feature.set_feature_mat, drawings[i:i+2000])
+                    data[i:i+100] = p.map(build_feature.set_feature_mat, drawings[i:i+100])
+                    print('starting' + str(i))
             print('finished preprocessing')
             data = scipy.sparse.csc_matrix(data)
             print(sys.getsizeof(data))
@@ -56,4 +57,4 @@ def train_test_split(dir_name,num_folds,num_workers,tr_data_pct):
             print(cat_name + ' already exists')
 
 #get_most_cv_tr_size('cv_simplified')
-train_test_split('train_simplified',10,60,tr_data_pct=0.8)
+train_test_split('train_simplified',10,50,tr_data_pct=0.8)
