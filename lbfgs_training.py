@@ -1,4 +1,3 @@
-#! /usr/bin/env python
 import os
 import time
 import numpy as np
@@ -6,62 +5,52 @@ import pandas as pd
 import build_feature
 from average_predictions import mapk
 import torch
+import torch.nn as nn
 from torch.utils import data
 import argparse
 from sag4crf_training import Image_dataset
 import torch.optim as optim
-from orion.client import report_results
+from utils import save_checkpoint
+from utils import parse_validation_data_labels
+import wandb
 
-def parse_validation_data_labels(labels):
-    if len(labels.shape) == 1: labels = labels[:, np.newaxis]
-    return labels.tolist()
-
-def train(weight_param, regularize_param, num_cats, device, train_loader, optimizer):
-    for image_batch, data_ids, data_labels in train_loader:
-        def closure():
-            optimizer.zero_grad()
-            image_batch_size = image_batch.shape[0]
-            probs = torch.zeros((image_batch_size, num_cats), device=device)
-            for i in range(image_batch_size):
-                img_feature = image_batch[i, :]
-                probs[i,:] = torch.nn.functional.softmax(torch.mv(weight_param, img_feature), dim=0)
-            loss = torch.nn.functional.nll_loss(probs, data_labels.to(device)) + (regularize_param/2)*torch.sum(weight_param**2, dtype=torch.float32)
-            loss.backward()
-            return loss
-        optimizer.step(closure)
-
-        # image_batch_size = image_batch.shape[0]
-        # probs = torch.zeros((image_batch_size, num_cats), device=device)
-        # for i in range(image_batch_size):
-        #     img_feature = image_batch[i, :]
-        #     probs[i, :] = torch.nn.functional.softmax(torch.mv(weight_param, img_feature), dim=0)
-        # loss = torch.nn.functional.nll_loss(probs, data_labels.to(device)) + (regularize_param/2)*torch.sum(weight_param**2, dtype=torch.float32)
-        # print('loss = %.3f' % (loss.item()))
-
-    return weight_param
-
-def validate(weight_param, validate_data_true_label, validate_loader, val_dataset_size, device):
-    all_predictions = torch.zeros((val_dataset_size, 3), dtype=torch.int16, device=device)
-    i = 0
+def validate(crf, validate_data_true_label, validate_loader, val_dataset_size, device):
+    all_predictions = []
     for image_batch, data_ids, _ in validate_loader:
-        image_batch_size = image_batch.shape[0]
-        for j in range(image_batch_size):
-            img_feature = image_batch[j, :]
-            prediction = torch.topk(torch.exp(torch.mv(weight_param, img_feature)), 3)[1]
-            all_predictions[i, :] = prediction
-            i += 1
-    return mapk(actual=validate_data_true_label, predicted=parse_validation_data_labels(all_predictions.cpu().numpy()), k=3)
+        all_predictions.append(crf.make_predictions(image_batch).cpu().numpy())
+    all_predictions = np.squeeze(np.array(all_predictions))
+    return mapk(actual=validate_data_true_label, predicted=parse_validation_data_labels(all_predictions), k=3)
+
+class CRF(nn.Module):
+    def __init__(self, initial_weights, num_features, num_cats):
+        super(CRF, self).__init__()
+        self.crf_weights = initial_weights
+        self.linear = nn.Linear(num_features, num_cats, bias=False)
+        self.log_softmax = nn.LogSoftmax(dim=1)
+        self.nll_loss = nn.NLLLoss()
+
+    def forward(self, image_batch, data_labels, regularization_param, device, num_cats=5):
+        probs = self.log_softmax(self.linear(image_batch))
+        return self.nll_loss(probs, data_labels.to(device))
+
+    def make_predictions(self, image_batch):
+        return torch.topk(torch.exp(self.linear(image_batch)), 3)[1]
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_loc', default='./cv_simplified')
     parser.add_argument('--checkpoint_loading_path', default='./saved_model')
+    parser.add_argument('--checkpoint_saving_path', default='./saved_model')
     parser.add_argument('--on_cluster', action='store_true', default=False)
     parser.add_argument('--resume', action='store_true', default=False)
+    parser.add_argument('--wandb_logging', action='store_true', default=False)
+    parser.add_argument('--wandb_exp_name')
     parser.add_argument('--step_size', type=float, default=1e-06)
+    parser.add_argument('--weight_decay', type=float, default=1e-06)
     parser.add_argument('--batch_size', type=int, default=500)
     parser.add_argument('--regularization_param', type=float, default=1e-03)
     parser.add_argument('--max_epoch', type=int, default=100)
+    parser.add_argument('--opt_method', default='lbfgs')
     args = parser.parse_args()
 
     if args.on_cluster:
@@ -71,6 +60,10 @@ def main():
     else:
         dataset_loc = args.dataset_loc
         device = torch.device('cpu')
+
+    if args.wandb_logging:
+        wandb.init(project='quick_draw_crf', name=args.wandb_exp_name)
+        wandb.config.update({"step_size": args.step_size, "weight_decay": args.weight_decay, "opt_method":args.opt_method})
 
     torch.manual_seed(1)
     num_cats = 5
@@ -82,17 +75,37 @@ def main():
     validate_data_true_label = parse_validation_data_labels(pd.read_pickle(os.path.join(args.dataset_loc, 'val.pkl'))['cat_ind'].values)
 
     weight_param = torch.randn((num_cats, num_features), dtype=torch.float64, device=device, requires_grad=True)
-    optimizer = optim.LBFGS([weight_param], lr=args.step_size, max_iter=20, tolerance_grad=1e-10, history_size=10)
+    crf = CRF(weight_param, num_features, num_cats).to(device)
+    if args.opt_method == 'lbfgs':
+        optimizer = optim.LBFGS(crf.parameters(), lr=args.step_size)
+    crf.name = 'crf_' + args.opt_method
 
-    for i in range(args.max_epoch):
-        weight_param = train(weight_param, args.regularization_param, num_cats, device, train_loader, optimizer)
-        val_err = validate(weight_param, validate_data_true_label, validate_loader, val_dataset.data_size, device)
-        print('epoch=%d. ' % (i) + '. validation error = %.3f' % (val_err))
+    print('initial validation error = %.3f' % (validate(crf, validate_data_true_label, validate_loader, val_dataset.data_size, device)))
 
-    report_results([dict(
-        name='validation result',
-        type='objective',
-        value= -val_err)])
+    for epoch in range(args.max_epoch):
+        def closure():
+            optimizer.zero_grad()
+            i = 1
+            for image_batch, data_ids, data_labels in train_loader:
+                loss = crf(image_batch, data_labels, args.regularization_param, device)
+                loss.backward()
+                if i % 5 == 0: return loss
+                i += 1
+        optimizer.step(closure)
+        val_err = validate(crf, validate_data_true_label, validate_loader, val_dataset.data_size, device)
+
+        i = 1
+        tr_loss = 0
+        for image_batch, data_ids, data_labels in train_loader:
+            tr_loss += crf(image_batch, data_labels, args.regularization_param, device).item()
+            if i % 5 == 0: break
+
+        if args.wandb_logging:
+            wandb.log({'val_err':val_err, 'tr_loss':tr_loss/5, 'adam_grad_l1':torch.sum(torch.sum(torch.abs(crf.linear.weight.grad)))})
+        else:
+            print('epoch=%d. ' % (epoch) + '. validation error = %.3f' % (val_err))
+
+    save_checkpoint(crf, args.checkpoint_saving_path, epoch)
 
 if __name__ == '__main__':
     main()
