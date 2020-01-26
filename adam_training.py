@@ -17,7 +17,7 @@ import wandb
 def validate(crf, validate_data_true_label, validate_loader, val_dataset_size, device):
     all_predictions = []
     for image_batch, data_ids, _ in validate_loader:
-        all_predictions.append(crf.make_predictions(image_batch).cpu().numpy())
+        all_predictions.extend(crf.make_predictions(image_batch).cpu().numpy())
     all_predictions = np.squeeze(np.array(all_predictions))
     return mapk(actual=validate_data_true_label, predicted=parse_validation_data_labels(all_predictions), k=3)
 
