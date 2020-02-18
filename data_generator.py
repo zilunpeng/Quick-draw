@@ -109,48 +109,75 @@ def torch_vision_transform(stroke, img_size):
     drawing[:,:,2] = (drawing[:,:,2]-0.406)/0.225
     return drawing
 
-def stroke_to_drawing_generator(data_path, saving_path, img_size, num_cats, num_train_data_to_sample_in_each_cat, num_val_data_to_sample_in_each_cat):
-    file_handler = h5py.File(os.path.join(saving_path, 'quick_draw_stroke_data.hdf5'), 'w')
+def generate_training_data(data_path, saving_path, img_size, num_cats, num_train_data_to_sample_in_each_cat,
+                           num_val_data_to_sample_in_each_cat, file_no):
+    file_handler = h5py.File(os.path.join(saving_path, 'quick_draw_resnet_data_'+str(file_no)+'.hdf5'), 'w')
     tr_data_pointer = file_handler.create_dataset('tr_data', (num_cats * num_train_data_to_sample_in_each_cat, 3, img_size, img_size),
                                                   dtype='float32', chunks=(1, 3, img_size, img_size), compression="gzip", compression_opts=4)
-    val_data_pointer = file_handler.create_dataset('val_data', (num_cats * num_val_data_to_sample_in_each_cat, 3, img_size, img_size),
-                                                   dtype='float32', chunks=(1, 3, img_size, img_size), compression="gzip", compression_opts=4)
-
     tr_label_pointer = file_handler.create_dataset('tr_label', (num_cats * num_train_data_to_sample_in_each_cat, 1),
                                                    dtype='int64',  chunks=(1, 1), compression="gzip", compression_opts=4)
-    val_label_pointer = file_handler.create_dataset('val_label', (num_cats * num_val_data_to_sample_in_each_cat, 1),
-                                                    dtype='int64', chunks=(1, 1), compression="gzip", compression_opts=4)
     cur_tr_ind = 0
-    cur_val_ind = 0
-    num_data_to_sample_in_cat = num_train_data_to_sample_in_each_cat + num_val_data_to_sample_in_each_cat
     file_list = os.listdir(data_path)
-    print('found ' + str(len(file_list)) + ' files')
-
     for file_ind in range(num_cats):
         cat_name = file_list[file_ind]
         if cat_name == '.DS_Store': continue
         data_in_cur_cat = pd.read_csv(os.path.join(data_path, cat_name))
-        inds = np.random.choice(data_in_cur_cat.shape[0], size=num_data_to_sample_in_cat, replace=False)
-        tr_inds = inds[0:num_train_data_to_sample_in_each_cat]
-        val_inds = inds[num_train_data_to_sample_in_each_cat:num_data_to_sample_in_cat]
-        for ind in tr_inds:
+        inds = np.random.choice(np.arange(num_val_data_to_sample_in_each_cat, data_in_cur_cat.shape[0]), size=num_train_data_to_sample_in_each_cat, replace=False)
+        for ind in inds:
             tr_data_pointer[cur_tr_ind] = torch_vision_transform(ast.literal_eval(data_in_cur_cat.loc[ind, 'drawing']), img_size)
             tr_label_pointer[cur_tr_ind] = file_ind
             cur_tr_ind += 1
 
-        for ind in val_inds:
+    file_handler.flush()
+    file_handler.close()
+
+# Generate 20 files. In each file, select 1000 data from each category, so each file has 340,000 training data
+# Generate validation data in one file. validation data will always be first 500 data in each category
+def stroke_to_drawing_generator(data_path, saving_path, img_size, num_cats, num_train_data_to_sample_in_each_cat,
+                                num_val_data_to_sample_in_each_cat, num_files_to_gen):
+    for file_no in range(num_files_to_gen):
+        generate_training_data(data_path, saving_path, img_size, num_cats, num_train_data_to_sample_in_each_cat, num_val_data_to_sample_in_each_cat, file_no)
+        print('finished generating file ' + str(file_no))
+
+    file_handler = h5py.File(os.path.join(saving_path, 'quick_draw_resnet_val_data.hdf5'), 'w')
+    val_data_pointer = file_handler.create_dataset('val_data', (num_cats * num_val_data_to_sample_in_each_cat, 3, img_size, img_size),
+                                                   dtype='float32', chunks=(1, 3, img_size, img_size), compression="gzip", compression_opts=4)
+    val_label_pointer = file_handler.create_dataset('val_label', (num_cats * num_val_data_to_sample_in_each_cat, 1),
+                                                    dtype='int64', chunks=(1, 1), compression="gzip", compression_opts=4)
+    cur_val_ind = 0
+    file_list = os.listdir(data_path)
+    print('found ' + str(len(file_list)) + ' files')
+    for file_ind in range(num_cats):
+        cat_name = file_list[file_ind]
+        if cat_name == '.DS_Store': continue
+        data_in_cur_cat = pd.read_csv(os.path.join(data_path, cat_name))
+        for ind in range(num_val_data_to_sample_in_each_cat):
             val_data_pointer[cur_val_ind] = torch_vision_transform(ast.literal_eval(data_in_cur_cat.loc[ind, 'drawing']), img_size)
             val_label_pointer[cur_val_ind] = file_ind
             cur_val_ind += 1
         print(cat_name + '_num_data=' + str(data_in_cur_cat.shape[0]))
+    file_handler.flush()
+    file_handler.close()
+
+def test_data_generator(data_path, saving_path):
+    img_size = 224
+    test_data = pd.read_csv(data_path)
+    num_test_data = test_data.shape[0]
+    print('num test data = ' + str(num_test_data))
+
+    file_handler = h5py.File(os.path.join(saving_path, 'quick_draw_test_data.hdf5'), 'w')
+    test_data_pointer = file_handler.create_dataset('test_data', (num_test_data, 3, img_size, img_size),
+                                                   dtype='float32', chunks=(1, 3, img_size, img_size), compression="gzip", compression_opts=4)
+    for ind in range(num_test_data):
+        test_data_pointer[ind] = torch_vision_transform(ast.literal_eval(test_data.loc[ind, 'drawing']), img_size)
 
     file_handler.flush()
     file_handler.close()
 
-
 if __name__ == "__main__":
     # sample_and_compose_data(dir_loc='./cv_simplified', num_tr_data_to_sample=5000, num_val_data_to_sample=100,
     #                         save_loc='./cv_one_file')
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--part', type=int, default=1)
     args = parser.parse_args()
@@ -161,10 +188,16 @@ if __name__ == "__main__":
     #                      num_train_data_to_sample_in_each_cat=20000,
     #                      num_val_data_to_sample_in_each_cat=500, part=args.part)
 
-    stroke_to_drawing_generator(data_path=os.path.join(slurm_tmp_dir_loc, 'quick_draw_data'),
-                                saving_path=slurm_tmp_dir_loc,
-                                img_size=224,
-                                num_cats=340,
-                                num_train_data_to_sample_in_each_cat=20000,
-                                num_val_data_to_sample_in_each_cat=500
-                                )
+    # data_saving_path = os.path.join(slurm_tmp_dir_loc, 'quick_draw_resnet_data')
+    # os.mkdir(data_saving_path)
+    # stroke_to_drawing_generator(data_path=os.path.join(slurm_tmp_dir_loc, 'quick_draw_data'),
+    #                             saving_path=data_saving_path,
+    #                             img_size=224,
+    #                             num_cats=340,
+    #                             num_train_data_to_sample_in_each_cat=1000,
+    #                             num_val_data_to_sample_in_each_cat=500,
+    #                             num_files_to_gen=20
+    #                             )
+
+    test_data_generator(data_path=os.path.join(slurm_tmp_dir_loc, 'test_simplified.csv'),
+                        saving_path=slurm_tmp_dir_loc)
