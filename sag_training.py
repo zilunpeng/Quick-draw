@@ -1,28 +1,16 @@
-import os
-import time
 import numpy as np
-import pandas as pd
-import build_feature
-from average_predictions import mapk
 import torch
-import torch.nn as nn
 from torch.utils import data
 import argparse
-import torch.optim as optim
-from utils import save_checkpoint
-from utils import parse_validation_data_labels
 import wandb
 import h5py
 from torch.nn.functional import softmax as Softmax
 
+from utils import validate
+from utils import parse_validation_data_labels
 from adam_training_100_cats import Image_dataset as Validation_dataset
 
-def validate(crf, validate_data_true_label, validate_loader, val_dataset_size, device):
-    all_predictions = []
-    for image_batch, data_ids, _ in validate_loader:
-        all_predictions.extend(crf.make_predictions(image_batch).cpu().numpy())
-    all_predictions = np.squeeze(np.array(all_predictions))
-    return mapk(actual=validate_data_true_label, predicted=parse_validation_data_labels(all_predictions), k=3)
+
 
 class Image_dataset(data.Dataset):
     def __init__(self, data, label, data_size, num_cats, device):

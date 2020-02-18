@@ -1,15 +1,29 @@
-import os
-import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils import data
 import argparse
-from sag4crf_training import Image_dataset
 import torch.optim as optim
+from utils import validate
 from utils import save_checkpoint
 from utils import parse_validation_data_labels
-from utils import validate
 import wandb
+import h5py
+
+class Image_dataset(data.Dataset):
+    def __init__(self, data, label, num_cats, num_data_per_cat, num_features, device):
+        self.data = data
+        self.label = label
+        self.data_size = num_cats * num_data_per_cat
+        self.num_features = num_features
+        self.device = device
+
+    def __len__(self):
+        return self.data_size
+
+    def __getitem__(self, index):
+        feature = torch.tensor(self.data[index], dtype=torch.float32, device=self.device)
+        label = self.label[index][0].astype(int)
+        return feature, index, label
 
 class CRF(nn.Module):
     def __init__(self, initial_weights, num_features, num_cats):
@@ -19,7 +33,7 @@ class CRF(nn.Module):
         self.log_softmax = nn.LogSoftmax(dim=1)
         self.nll_loss = nn.NLLLoss()
 
-    def forward(self, image_batch, data_labels, regularization_param, device, num_cats=5):
+    def forward(self, image_batch, data_labels, regularization_param, device):
         probs = self.log_softmax(self.linear(image_batch))
         return self.nll_loss(probs, data_labels.to(device))
 
@@ -38,31 +52,36 @@ def main():
     parser.add_argument('--step_size', type=float, default=1e-06)
     parser.add_argument('--weight_decay', type=float, default=1e-06)
     parser.add_argument('--batch_size', type=int, default=500)
+    parser.add_argument('--num_iter_accum_grad', type=int, default=1)
     parser.add_argument('--regularization_param', type=float, default=1e-03)
     parser.add_argument('--max_epoch', type=int, default=100)
     parser.add_argument('--opt_method', default='adam')
     args = parser.parse_args()
 
     if args.on_cluster:
-        dataset_loc = os.environ.get('SLURM_TMPDIR', '.')
-        dataset_loc = os.path.join(dataset_loc, args.dataset_loc)
         device = torch.device('cuda')
     else:
-        dataset_loc = args.dataset_loc
         device = torch.device('cpu')
 
     if args.wandb_logging:
         wandb.init(project='quick_draw_crf', name=args.wandb_exp_name)
-        wandb.config.update({"step_size": args.step_size, "weight_decay": args.weight_decay, "opt_method":args.opt_method})
+        wandb.config.update({"step_size": args.step_size, "weight_decay": args.weight_decay,
+                             "opt_method":args.opt_method, "num_data_used_calc_grad":args.batch_size*args.num_iter_accum_grad})
 
     torch.manual_seed(1)
-    num_cats = 5
+    num_cats = 113
     num_features = 851968
-    tr_dataset = Image_dataset(data_path=os.path.join(dataset_loc, 'tr.pkl'), num_features=num_features, device=device)
-    val_dataset = Image_dataset(data_path=os.path.join(dataset_loc, 'val.pkl'), num_features=num_features, device=device)
+    num_tr_data_per_cat = 20000
+    num_val_data_per_cat = 500
+
+    data_fh = h5py.File(args.dataset_loc, 'r')
+    tr_dataset = Image_dataset(data=data_fh['tr_data'], label=data_fh['tr_label'], num_cats=num_cats, num_data_per_cat=num_tr_data_per_cat,
+                               num_features=num_features, device=device)
+    val_dataset = Image_dataset(data=data_fh['val_data'], label=data_fh['val_label'], num_cats=num_cats, num_data_per_cat=num_val_data_per_cat,
+                                num_features=num_features, device=device)
     train_loader = data.DataLoader(tr_dataset, batch_size=args.batch_size, shuffle=True)
     validate_loader = data.DataLoader(val_dataset, batch_size=args.batch_size)
-    validate_data_true_label = parse_validation_data_labels(pd.read_pickle(os.path.join(args.dataset_loc, 'val.pkl'))['cat_ind'].values)
+    validate_data_true_label = parse_validation_data_labels(data_fh['val_label'][:num_cats*num_val_data_per_cat])
 
     weight_param = torch.randn((num_cats, num_features), dtype=torch.float64, device=device, requires_grad=True)
     crf = CRF(weight_param, num_features, num_cats).to(device)
@@ -80,7 +99,7 @@ def main():
         for image_batch, data_ids, data_labels in train_loader:
             loss = crf(image_batch, data_labels, args.regularization_param, device)
             loss.backward()
-            if i % 10 == 0:
+            if i % args.num_iter_accum_grad == 0:
                 optimizer.step()
                 adam_grad_l1 = torch.sum(torch.sum(torch.abs(crf.linear.weight.grad)))
                 optimizer.zero_grad()
